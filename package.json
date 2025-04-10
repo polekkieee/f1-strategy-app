@@ -1,0 +1,23 @@
+{
+  "name": "f1-strategy-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/polekkieee/f1-strategy-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/polekkieee/f1-strategy-app/issues"
+  },
+  "homepage": "https://github.com/polekkieee/f1-strategy-app#readme",
+  "dependencies": {
+    "dgram": "^1.0.1"
+  }
+}
