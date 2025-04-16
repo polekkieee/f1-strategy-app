@@ -1,14 +1,61 @@
 const express = require("express");
 const http = require("http");
+const cors = require("cors"); // You may need to install this: npm install cors
 const udpListener = require("./udpListener");
+const { initializeWebSocket, broadcast } = require("./websocketServer");
 
+// Create Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
 
-// Future: Add WebSocket here (next step)
+// Add middleware
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // Parse JSON bodies
 
-// Start the HTTP + UDP servers
-const PORT = 3001;
-server.listen(PORT, () => {
-  console.log(`🌐 Express server listening on http://localhost:${PORT}`);
+// Add basic health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Attach WebSocket server to HTTP server
+initializeWebSocket(server);
+
+// Start the UDP listener
+try {
+  udpListener.start();
+  console.log("🔊 UDP listener started");
+} catch (error) {
+  console.error("❌ Failed to start UDP listener:", error);
+}
+
+// Set up error handling for the Express app
+app.use((err, req, res, next) => {
+  console.error("❌ Express error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// Set environment variables with defaults
+const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || "0.0.0.0";
+
+// Start the server
+server.listen(PORT, HOST, () => {
+  console.log(`🌐 Express + WebSocket server listening on http://${HOST}:${PORT}`);
+});
+
+// Handle graceful shutdown
+process.on("SIGINT", () => {
+  console.log("🛑 Shutting down server...");
+  
+  // Close the UDP listener if it exists
+  if (typeof udpListener.stop === 'function') {
+    udpListener.stop();
+    console.log("🔇 UDP listener stopped");
+  }
+  
+  // Close the HTTP server
+  server.close(() => {
+    console.log("🔒 HTTP server closed");
+    process.exit(0);
+  });
 });
