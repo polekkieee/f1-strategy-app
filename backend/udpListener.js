@@ -2,7 +2,7 @@ const dgram = require("dgram");
 const { broadcast } = require("./websocketServer");
 
 // Configuration
-const UDP_PORT = process.env.UDP_PORT || 20777;
+const UDP_PORT = process.env.UDP_PORT || 20777; //f1 default
 const UDP_HOST = process.env.UDP_HOST || "0.0.0.0";
 
 let udpServer = null;

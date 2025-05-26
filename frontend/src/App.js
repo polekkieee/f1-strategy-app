@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 
 import Header from "./components/Header";
 import Modal from "./components/Modal";
+import PitBoardModal from "./components/PitBoardModal";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 
@@ -14,9 +15,9 @@ function App() {
   });
 
   const [strategy, setStrategy] = useState({
-    suggestedLap: 14,
-    newCompound: "MEDIUM",
-    strategyNote: "Consider pitting in 3 laps due to tire degradation.",
+    suggestedLap: "...",
+    newCompound: "...",
+    strategyNote: "...",
   });
 
   const [newStrategy, setNewStrategy] = useState(null);
@@ -29,39 +30,39 @@ function App() {
     let ws = null;
     let reconnectTimeout = null;
     let isIntentionalClose = false;
-  
+
     const connectWebSocket = () => {
       // Clear any existing reconnect timeouts
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
-      
+
       // Close existing connection if any
       if (ws) {
         isIntentionalClose = true;
         ws.close();
       }
-      
+
       // Create new WebSocket connection
       isIntentionalClose = false;
       ws = new WebSocket("ws://localhost:5000");
-  
+
       const handleOpen = () => {
         console.log("Connected to WebSocket");
         setConnected(true);
       };
-  
+
       const handleClose = () => {
         console.log("Disconnected from WebSocket");
         setConnected(false);
-        
+
         // Only attempt to reconnect if the closure wasn't intentional
         if (!isIntentionalClose) {
           console.log("Attempting to reconnect in 3 seconds...");
           reconnectTimeout = setTimeout(connectWebSocket, 3000);
         }
       };
-  
+
       const handleMessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -75,34 +76,34 @@ function App() {
           console.error("Error processing WebSocket message:", error);
         }
       };
-  
+
       const handleError = (error) => {
         console.error("WebSocket error:", error);
       };
-  
+
       ws.addEventListener("open", handleOpen);
       ws.addEventListener("close", handleClose);
       ws.addEventListener("message", handleMessage);
       ws.addEventListener("error", handleError);
-  
+
       return () => {
         ws.removeEventListener("open", handleOpen);
         ws.removeEventListener("close", handleClose);
         ws.removeEventListener("message", handleMessage);
         ws.removeEventListener("error", handleError);
-        
+
         isIntentionalClose = true;
         ws.close();
-        
+
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout);
         }
       };
     };
-  
+
     // Initial connection
     connectWebSocket();
-  
+
     // Cleanup function
     return () => {
       if (ws) {
@@ -124,7 +125,7 @@ function App() {
         body: JSON.stringify({ raceData }),
       });
       const result = await response.json();
-      setStrategy(result);
+      setStrategy(result.strategy);
     } catch (error) {
       console.error("Error generating strategy:", error);
     } finally {
@@ -164,19 +165,22 @@ function App() {
       )}
 
       {currentPage === "settings" && (
-        <Settings 
-          onGoToDashBoardClick={() => setCurrentPage("dashboard")} 
+        <Settings
+          onGoToDashBoardClick={() => setCurrentPage("dashboard")}
         />
       )}
 
-      {showModal && (
-        <Modal
-          newStrategy={newStrategy}
-          acceptStrategy={acceptStrategy}
-          setShowModal={setShowModal}
-          getTireColor={getTireColor}
+      {showModal && newStrategy && (
+        <PitBoardModal
+          strategy={newStrategy}
+          onAccept={acceptStrategy}
+          onReject={() => {
+            setShowModal(false);
+            setNewStrategy(null);
+          }}
         />
       )}
+
     </div>
   );
 }
