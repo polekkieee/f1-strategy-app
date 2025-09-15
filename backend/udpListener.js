@@ -1,16 +1,15 @@
 const dgram = require("dgram");
 const { broadcast } = require("./websocketServer");
 
-// Configuration
-const UDP_PORT = process.env.UDP_PORT || 20777; //f1 default
+const UDP_PORT = process.env.UDP_PORT || 20777; // Default F1 UDP port
 const UDP_HOST = process.env.UDP_HOST || "0.0.0.0";
 
 let udpServer = null;
 
 /**
  * Start the UDP listener
- * @param {Function} customCallback Optional custom callback for handling data
- * @returns {Object} The UDP server instance
+ * @param {Function|null} customCallback Optional callback for handling raw packet data
+ * @returns {dgram.Socket} The UDP server instance
  */
 function start(customCallback = null) {
   if (udpServer) {
@@ -21,44 +20,15 @@ function start(customCallback = null) {
   udpServer = dgram.createSocket("udp4");
 
   udpServer.on("message", (msg, rinfo) => {
-    console.log(`📡 Received packet from ${rinfo.address}:${rinfo.port} (${msg.length} bytes)`);
-    
-    // For now just emit dummy structured data
-    const sampleData = {
-      type: "raceData",
-      payload: {
-        position: 4,
-        tireCompound: "SOFT",
-        tireWear: Math.floor(Math.random() * 100),
-        fuelRemaining: (Math.random() * 20).toFixed(1),
-        timestamp: new Date().toISOString()
-      },
-    };
+    console.log(
+      `📡 Received packet from ${rinfo.address}:${rinfo.port} (${msg.length} bytes)`
+    );
 
-    // Use the custom callback if provided, otherwise use the default broadcast
-    if (typeof customCallback === 'function') {
-      customCallback(sampleData);
+    // For now, forward raw buffer data
+    if (typeof customCallback === "function") {
+      customCallback(msg, rinfo);
     } else {
-      broadcast(sampleData);
-    }
-    
-    // Generate random strategy updates occasionally (for testing)
-    if (Math.random() < 0.1) {  // 10% chance of sending a strategy update
-      const strategyUpdate = {
-        type: "strategyUpdate",
-        payload: {
-          suggestedStop: Math.floor(Math.random() * 5) + 1,
-          tireRecommendation: Math.random() > 0.5 ? "MEDIUM" : "HARD",
-          fuelToAdd: Math.floor(Math.random() * 30),
-          reason: "Weather change expected"
-        }
-      };
-      
-      if (typeof customCallback === 'function') {
-        customCallback(strategyUpdate);
-      } else {
-        broadcast(strategyUpdate);
-      }
+      broadcast({ type: "rawPacket", payload: msg });
     }
   });
 
@@ -81,9 +51,11 @@ function start(customCallback = null) {
  */
 function stop() {
   if (udpServer) {
-    udpServer.close();
+    udpServer.removeAllListeners();
+    udpServer.close(() => {
+      console.log("🛑 UDP listener stopped");
+    });
     udpServer = null;
-    console.log("🛑 UDP listener stopped");
   }
 }
 
