@@ -11,6 +11,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@deltazeroproduction/f1-udp-parser": "^1.2.1",
+    "@racehub-io/f1-telemetry-client": "^0.2.12",
     "cors": "^2.8.5",
     "dgram": "^1.0.1",
     "dotenv": "^16.5.0",

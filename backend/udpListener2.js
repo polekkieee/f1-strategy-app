@@ -1,5 +1,5 @@
 // udpListener.js
-import { F1TelemetryClient, constants } from 'f1-telemetry-client';
+import { F1TelemetryClient, constants } from '@racehub-io/f1-telemetry-client';
 import { broadcast } from './websocketServer.js';
 
 const { PACKETS } = constants;

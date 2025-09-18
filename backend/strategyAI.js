@@ -39,18 +39,16 @@ const SuggestRaceStrategyOutput = z.object({
  * @param {number} input.bestLapTime
  * @param {number[]} input.lapTimeHistory
  * 
- * @param {string} input.carDamage
+ * @param {string[]} input.carDamage
  * @param {string} input.tireCompound
- * @param {number} input.tireWear
+ * @param {number} input.tireWearLF
+ * @param {number} input.tireWearRF
+ * @param {number} input.tireWearLR
+ * @param {number} input.tireWearRR
  * @param {number} input.tireAgeLaps
- * @param {number} input.fuelRemainingLaps
- * @param {number} input.fuelConsumptionPerLap
  * @param {number} input.ersStorage
  * 
- * @param {number} input.pitStopsCount
  * @param {number} input.pitStopWindowIdealLap
- * @param {number} input.pitStopWindowLatestLap
- * @param {number} input.pitStopRejoinPosition
  * 
  * @param {string} input.weather
  * @param {string[]} input.weatherForecast
@@ -59,9 +57,12 @@ const SuggestRaceStrategyOutput = z.object({
  * @param {string} input.trackStatus
  * @param {string[]} input.playerPenalties
  * 
+ * @param {string[]} input.availableTires
+ * 
  * 
  * @returns {Promise<Object>} - The suggested strategy in JSON format.
  */
+
 export async function suggestRaceStrategy(input) {
 const prompt = `
 You are a world-class Formula 1 race strategist. Analyze the following race data and suggest the optimal pit stop strategy.
@@ -79,23 +80,20 @@ Race Data:
 
 - Last Lap Time: ${input.lastLapTime}s
 - Best Lap Time: ${input.bestLapTime}s
-- Lap History: [${input.lapTimeHistory.join(", ")}]
+- Lap History: [${input.lapTimeHistory.length > 0 ? input.lapTimeHistory.join(", ") : "No lap history available"}]
 
-- Car Damage: ${input.carDamage}
-- Current Tires: ${input.tireCompound}, Wear: ${input.tireWear}%, Age: ${input.tireAgeLaps} laps
-- Fuel Remaining: ${input.fuelRemainingLaps} laps (consumption ~${input.fuelConsumptionPerLap} per lap)
+- Car Damage: ${input.carDamage && input.carDamage.length > 0 ? input.carDamage.join(", ") : "None"}
+- Current Tires: ${input.tireCompound}, Wear Left Front: ${input.tireWearLF}%, Wear Right Front: ${input.tireWearRF}%, Wear Left Rear: ${input.tireWearLR}%, Wear Right Rear: ${input.tireWearRR}%, Age: ${input.tireAgeLaps} laps
 - ERS Storage: ${input.ersStorage}%
 
-- Pit Stops Made: ${input.pitStopsCount}
-- Ideal Pit Window: Lap ${input.pitStopWindowIdealLap}–${input.pitStopWindowLatestLap}
-- Expected Rejoin Position: P${input.pitStopRejoinPosition}
+- Current Ideal Pit Lap: Lap ${input.pitStopWindowIdealLap}
 
 - Weather: ${input.weather}
-- Forecast: [${input.weatherForecast.join(", ")}]
+- Forecast: [${input.weatherForecast.length > 0 ? input.weatherForecast.join(", ") : "No forecast available"}]
 - Forecast Accuracy: ${input.forecastAccuracy}
 
 - Track Status: ${input.trackStatus}
-- Penalties: [${input.playerPenalties.join(", ")}]
+- Penalties: [${input.playerPenalties.length > 0 ? input.playerPenalties.join(", ") : "None"}]
 
 Return a JSON object with the following keys:
 - lapToBox: The lap number when the driver should pit.
