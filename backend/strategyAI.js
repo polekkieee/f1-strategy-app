@@ -63,8 +63,8 @@ const SuggestRaceStrategyOutput = z.object({
  * @returns {Promise<Object>} - The suggested strategy in JSON format.
  */
 
-export async function suggestRaceStrategy(input) {
-const prompt = `
+export async function suggestAiRaceStrategy(input) {
+    const prompt = `
 You are a world-class Formula 1 race strategist. Analyze the following race data and suggest the optimal pit stop strategy.
 
 Race Data:

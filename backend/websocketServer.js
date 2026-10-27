@@ -1,9 +1,9 @@
-const WebSocket = require("ws");
+import { WebSocketServer } from "ws";
 
 let wss;
 
 function initializeWebSocket(server) {
-  wss = new WebSocket.Server({ 
+  wss = new WebSocketServer({ 
     server,
     // Add ping/pong for connection health checks
     clientTracking: true,
@@ -147,7 +147,7 @@ function sendToClient(clientId, data) {
   return sent;
 }
 
-module.exports = { 
+export { 
   initializeWebSocket, 
   broadcast,
   sendToClient

@@ -673,7 +673,7 @@ const F1_25_HELPERS = {
 };
 
 // Export for use in Node.js
-module.exports = {
+export {
     F1_25_CONSTANTS,
     F1_25_HELPERS
 };

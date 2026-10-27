@@ -1,9 +1,10 @@
-const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const udpListener = require("./udpListener3");
-const { initializeWebSocket } = require("./websocketServer");
-const { sendMessageToChatGPT } = require("./strategyAI"); // Import the AI function
+import express from "express";
+import http from "http";
+import cors from "cors";
+import { start as startTelemetry, stop as stopTelemetry } from "./telemetryService.js";
+import { initializeWebSocket, broadcast } from "./websocketServer.js";
+import { suggestAiRaceStrategy } from "./strategyAI.js";
+import { raceStore } from "./raceStateStore.js";
 
 // Create Express app and HTTP server
 const app = express();
@@ -18,26 +19,26 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+
 // Generate strategy endpoint
+// ensure cooldown on AI api calls
+let lastStrategyRequest = 0;
+const COOLDOWN_MS = 15000; // 15 seconds
+
 app.post("/api/generate-strategy", async (req, res) => {
+  const now = Date.now();
+  if (now - lastStrategyRequest < COOLDOWN_MS) {
+    return res.status(429).json({ error: "Strategy AI is on cooldown. Please wait." });
+  }
+  lastStrategyRequest = now;
+
   try {
-    const raceData = req.body.raceData;
-
-    // Prepare messages for ChatGPT
-    const messages = [
-      { role: "system", content: "You are an AI strategy assistant for F1 racing." },
-      { role: "user", content: `Based on the following race data, generate a pit strategy: ${JSON.stringify(raceData)}` },
-    ];
-
-    // Call the AI function
-    const aiResponse = await sendMessageToChatGPT(messages);
-
-    // Extract the strategy from the AI response
-    const strategy = aiResponse.choices[0].message.content;
+    const currentState = raceStore.state;
+    const strategy = await suggestAiRaceStrategy(currentState);
 
     res.status(200).json({
       status: "ok",
-      strategy: JSON.parse(strategy), // Ensure the response is parsed as JSON
+      strategy: strategy,
     });
   } catch (error) {
     console.error("Error generating strategy:", error);
@@ -50,8 +51,13 @@ initializeWebSocket(server);
 
 // Start the UDP listener
 try {
-  udpListener.start();
+  startTelemetry();
   console.log("🔊 UDP listener started");
+
+  // 10Hz broadcast loop that reads from the isolated store
+  setInterval(() => {
+    broadcast({ type: "telemetryUpdate", payload: raceStore.state });
+  }, 100);
 } catch (error) {
   console.error("❌ Failed to start UDP listener:", error);
 }
@@ -74,13 +80,11 @@ server.listen(PORT, HOST, () => {
 // Handle graceful shutdown
 process.on("SIGINT", () => {
   console.log("🛑 Shutting down server...");
-  
-  // Close the UDP listener if it exists
-  if (typeof udpListener.stop === 'function') {
-    udpListener.stop();
-    console.log("🔇 UDP listener stopped");
-  }
-  
+
+  // Close the UDP listener
+  stopTelemetry();
+  console.log("🔇 UDP listener stopped");
+
   // Close the HTTP server
   server.close(() => {
     console.log("🔒 HTTP server closed");
