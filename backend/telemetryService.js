@@ -1,6 +1,5 @@
 import { F1TelemetryClient, constants } from "@deltazeroproduction/f1-udp-parser";
 import { F1_25_CONSTANTS, F1_25_HELPERS } from "./udpAppendices.js"
-import { broadcast } from "./websocketServer.js";
 import { raceStore } from "./raceStateStore.js";
 const { PACKETS } = constants;
 
@@ -138,19 +137,14 @@ function handleCarStatus(carStatusData) {
         state.timestamp = Date.now();
 
         if (carAhead !== -1) {
-            state.carAheadTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carAhead].m_visualTyreCompound, isVisual = true);
+            state.carAheadTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carAhead].m_visualTyreCompound, true);
             state.carAheadTireAgeLaps = carStatusData.m_carStatusData[carAhead].m_tyresAgeLaps;
         }
         if (carBehind !== -1) {
-            state.carBehindTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carBehind].m_visualTyreCompound, isVisual = true);
+            state.carBehindTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carBehind].m_visualTyreCompound, true);
             state.carBehindTireAgeLaps = carStatusData.m_carStatusData[carBehind].m_tyresAgeLaps;
         }
-        state.tireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_visualTyreCompound, isVisual = true);
-
-        state.tireWearLR = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresWear[0];
-        state.tireWearRR = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresWear[1];
-        state.tireWearLF = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresWear[2];
-        state.tireWearRF = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresWear[3];
+        state.tireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_visualTyreCompound, true);
 
         state.tireAgeLaps = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresAgeLaps;
         state.ersStorage = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_ersStoreEnergy;
@@ -171,6 +165,11 @@ function handleCarDamage(carDamageData) {
         if (damage.m_sidepodDamage > 0) state.carDamage.push("Sidepod: " + damage.m_sidepodDamage);
         if (damage.m_drsFault) state.carDamage.push("(Irreparable) DRS fault");
         if (damage.m_ersFault) state.carDamage.push("(Irreparable) ERS fault");
+
+        state.tireWearLR = damage.m_tyresWear[0];
+        state.tireWearRR = damage.m_tyresWear[1];
+        state.tireWearLF = damage.m_tyresWear[2];
+        state.tireWearRF = damage.m_tyresWear[3];
     });
 }
 
@@ -188,22 +187,22 @@ function handleEvent(eventData) {
                 carBehind = -1;
                 break;
             case "PENA": // Penalty
-                if (eventData.m_eventDataDetails.vehicleIdx === packetInfo.playerCarIndex) {
-                    switch (eventData.m_eventDataDetails.penaltyType) {
+                if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex) {
+                    switch (eventData.m_eventDetails.penaltyType) {
                         case 0: state.playerPenalties.push("Drive through"); break;
                         case 1: state.playerPenalties.push("Stop and go"); break;
-                        case 4: state.playerPenalties.push("Time penalty: " + eventData.m_eventDataDetails.time); break;
+                        case 4: state.playerPenalties.push("Time penalty: " + eventData.m_eventDetails.time); break;
                         default: break;
                     }
                 }
                 break;
             case "DTSV": // Drive through served
-                if (eventData.m_eventDataDetails.vehicleIdx === packetInfo.playerCarIndex && state.playerPenalties.find(penalty => penalty === "Drive through")) {
+                if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex && state.playerPenalties.find(penalty => penalty === "Drive through")) {
                     state.playerPenalties = state.playerPenalties.filter(p => p !== "Drive through");
                 }
                 break;
             case "SGSV": // Stop go served
-                if (eventData.m_eventDataDetails.vehicleIdx === packetInfo.playerCarIndex && state.playerPenalties.find(penalty => penalty === "Stop and go")) {
+                if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex && state.playerPenalties.find(penalty => penalty === "Stop and go")) {
                     state.playerPenalties = state.playerPenalties.filter(penalty => penalty !== "Stop and go");
                 }
                 break;
@@ -229,9 +228,6 @@ function handleTyreSets(tyreSetsData) {
         }
     });
 }
-
-// broadcast to frontend
-let broadcastInterval;
 
 export function start() {
     client.start();
