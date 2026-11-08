@@ -4,7 +4,7 @@ import { raceStore } from "./raceStateStore.js";
 const { PACKETS } = constants;
 
 
-let initialize = false;
+let initialize = true;
 
 let packetInfo = {
     format: 2025,                   // Header
@@ -93,40 +93,54 @@ function handleSession(sessionData) {
         state.pitStopWindowIdealLap = sessionData.m_pitStopWindowIdealLap;
         state.weather = F1_25_HELPERS.getWeatherDescription(sessionData.m_weather);
 
-        state.weatherForecast = sessionData.m_weatherForecastSamples?.map(forecast => ({
+        state.weatherForecast = sessionData.m_weatherForecastSamples?.filter(f => f.m_sessionType === sessionData.m_sessionType).map(forecast => ({
             TimeOffsetMinutes: forecast.m_timeOffset,
             Weather: F1_25_HELPERS.getWeatherDescription(forecast.m_weather),
             RainPercentage: forecast.m_rainPercentage
         })) || [];
 
         state.forecastAccuracy = sessionData.m_forecastAccuracy === 0 ? "Perfect" : "Approximate";
-        state.trackStatus = F1_25_HELPERS.getTrackStatus(sessionData.m_trackStatus);
+        state.safetyCarStatus = F1_25_HELPERS.getSafetyCarStatus(sessionData.m_safetyCarStatus);
     });
 }
 
 function handleLapData(lapData) {
     raceStore.mutate((state) => {
         state.timestamp = Date.now();
+        const me = lapData.m_lapData[packetInfo.playerCarIndex];
 
-        state.playerPosition = lapData.m_lapData[packetInfo.playerCarIndex].m_carPosition;
+        state.playerPosition = me.m_carPosition;
         gridOrder = updateGridOrder(lapData, state.playerPosition);
 
-        if (state.currentLap < lapData.m_lapData[packetInfo.playerCarIndex].m_currentLapNum) {
+        state.pitStatus = me.m_pitStatus !== 0 ? "pitting" : "none";   // 1 = pit lane, 2 = pit area
+
+        state.numPitStopsTaken = me.m_numPitStops;
+        state.totalPenaltySeconds = me.m_penalties; // accumulated seconds
+
+        state.numPitStopsTaken = me.m_numPitStops;
+
+        if (state.currentLap < me.m_currentLapNum) {
+            state.lastLapTime = me.m_lastLapTimeInMS / 1000;
             state.lapTimeHistory.push(state.lastLapTime);
-            state.currentLap = lapData.m_lapData[packetInfo.playerCarIndex].m_currentLapNum;
-            state.lastLapTime = lapData.m_lapData[packetInfo.playerCarIndex].m_lastLapTimeInMS / 1000;
+            state.currentLap = me.m_currentLapNum;
             if (state.bestLapTime === 0 || (state.lastLapTime > 0 && state.lastLapTime < state.bestLapTime)) {
                 state.bestLapTime = state.lastLapTime;
             }
         }
 
         if (carAhead !== -1) {
-            state.gapAhead = lapData.m_lapData[packetInfo.playerCarIndex].m_deltaToCarInFrontMSPart / 1000;
+            state.gapAhead = lapData.m_lapData[packetInfo.playerCarIndex].m_deltaToCarInFrontMinutesPart * 60 + lapData.m_lapData[packetInfo.playerCarIndex].m_deltaToCarInFrontMSPart / 1000;
             state.carAheadLastLapTime = lapData.m_lapData[carAhead].m_lastLapTimeInMS / 1000;
+        } else {
+            state.gapAhead = 0;
+            state.carAheadLastLapTime = 0;
         }
         if (carBehind !== -1) {
-            state.gapBehind = lapData.m_lapData[carBehind].m_deltaToCarInFrontMSPart / 1000;
+            state.gapBehind = lapData.m_lapData[carBehind].m_deltaToCarInFrontMinutesPart * 60 + lapData.m_lapData[carBehind].m_deltaToCarInFrontMSPart / 1000;
             state.carBehindLastLapTime = lapData.m_lapData[carBehind].m_lastLapTimeInMS / 1000;
+        } else {
+            state.gapBehind = 0;
+            state.carBehindLastLapTime = 0;
         }
 
     });
@@ -139,15 +153,23 @@ function handleCarStatus(carStatusData) {
         if (carAhead !== -1) {
             state.carAheadTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carAhead].m_visualTyreCompound, true);
             state.carAheadTireAgeLaps = carStatusData.m_carStatusData[carAhead].m_tyresAgeLaps;
+        } else{
+            state.carAheadTireCompound = "";
+            state.carAheadTireAgeLaps = 0;
         }
         if (carBehind !== -1) {
             state.carBehindTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carBehind].m_visualTyreCompound, true);
             state.carBehindTireAgeLaps = carStatusData.m_carStatusData[carBehind].m_tyresAgeLaps;
+        } else {
+            state.carBehindTireCompound = "";
+            state.carBehindTireAgeLaps = 0;
         }
+        
         state.tireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_visualTyreCompound, true);
 
         state.tireAgeLaps = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresAgeLaps;
         state.ersStorage = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_ersStoreEnergy;
+        state.fuelRemainingLaps = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_fuelRemainingLaps;
     });
 }
 
@@ -174,17 +196,17 @@ function handleCarDamage(carDamageData) {
 }
 
 function handleEvent(eventData) {
+    if (eventData.m_eventStringCode === "SEND") {
+        raceStore.reset();
+        initialize = true;
+        gridOrder = []; carAhead = -1; carBehind = -1;
+        return;
+    }
     raceStore.mutate((state) => {
         state.timestamp = Date.now();
         switch (eventData.m_eventStringCode) {
             case "SSTA": // Session Started
                 initialize = true;
-                break;
-            case "SEND": // Session Ended
-                for (const key in state) state[key] = Array.isArray(state[key]) ? [] : 0;
-                gridOrder = [];
-                carAhead = -1;
-                carBehind = -1;
                 break;
             case "PENA": // Penalty
                 if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex) {
@@ -217,11 +239,12 @@ function handleTyreSets(tyreSetsData) {
             state.timestamp = Date.now();
             state.availableTires = [];
             tyreSetsData.m_tyreSetData.forEach(set => {
-                if (!set.fitted) {
+                if (!set.m_fitted && set.m_available) {
                     state.availableTires.push({
                         visualCompound: F1_25_HELPERS.getTyreCompound(set.m_visualTyreCompound, true),
                         wear: set.m_wear,
-                        laps: set.m_lifeSpan,
+                        lapsLeft: set.m_lifeSpan,
+                        usableLife: set.m_usableLife,
                     });
                 }
             });

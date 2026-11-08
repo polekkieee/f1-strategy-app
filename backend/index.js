@@ -26,28 +26,28 @@ let lastStrategyRequest = 0;
 const COOLDOWN_MS = 15000; // 15 seconds
 
 app.post("/api/generate-strategy", async (req, res) => {
-  const now = Date.now();
-  if (now - lastStrategyRequest < COOLDOWN_MS) {
-    return res.status(429).json({ error: "Strategy AI is on cooldown. Please wait." });
+  const wait = COOLDOWN_MS - (Date.now() - lastStrategyRequest);
+  if (wait > 0) {
+    return res.status(429).json({ error: "Strategy AI is on cooldown.", retryAfterMs: wait });
   }
-  lastStrategyRequest = now;
+  lastStrategyRequest = Date.now();
 
   try {
-    const currentState = raceStore.state;
-    const strategy = await suggestAiRaceStrategy(currentState);
-
+    const snapshot = structuredClone(raceStore.state);
+    const plan = await suggestAiRaceStrategy(snapshot);
     res.status(200).json({
       status: "ok",
-      strategy: strategy,
+      strategy: { ...plan, generatedAtLap: snapshot.currentLap, generatedAt: Date.now() },
     });
   } catch (error) {
     console.error("Error generating strategy:", error);
+    lastStrategyRequest = Date.now() - COOLDOWN_MS + 3000;   // allow a retry after 3 s
     res.status(500).json({ error: "Failed to generate strategy" });
   }
 });
 
 // Attach WebSocket server to HTTP server
-initializeWebSocket(server);
+initializeWebSocket(server, { getSnapshot: () => raceStore.state });
 
 // Start the UDP listener
 try {
@@ -55,7 +55,12 @@ try {
   console.log("🔊 UDP listener started");
 
   // 10Hz broadcast loop that reads from the isolated store
+  let dirty = true;
+  raceStore.subscribe(() => { dirty = true; });
+
   setInterval(() => {
+    if (!dirty) return;
+    dirty = false;
     broadcast({ type: "telemetryUpdate", payload: raceStore.state });
   }, 100);
 } catch (error) {
@@ -84,6 +89,8 @@ process.on("SIGINT", () => {
   // Close the UDP listener
   stopTelemetry();
   console.log("🔇 UDP listener stopped");
+
+  setTimeout(() => process.exit(0), 2000).unref();
 
   // Close the HTTP server
   server.close(() => {

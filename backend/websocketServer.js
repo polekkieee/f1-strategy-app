@@ -1,25 +1,23 @@
-import { WebSocketServer } from "ws";
+// websocket.js
+import { WebSocketServer, WebSocket } from "ws";
 
 let wss;
 
-function initializeWebSocket(server) {
+function initializeWebSocket(server, { getSnapshot } = {}) {
   wss = new WebSocketServer({ 
     server,
     // Add ping/pong for connection health checks
     clientTracking: true,
-    perMessageDeflate: {
-      zlibDeflateOptions: {
-        chunkSize: 1024,
-        memLevel: 7,
-        level: 3
-      },
-      zlibInflateOptions: {
-        chunkSize: 10 * 1024
-      }
-    }
   });
 
   wss.on("connection", (ws, req) => {
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
+
+    if (getSnapshot) {
+      ws.send(JSON.stringify({ type: "telemetryUpdate", payload: getSnapshot() }));
+    }
+
     const clientIp = req.socket.remoteAddress;
     console.log(`🧩 New WebSocket connection from ${clientIp}`);
 
@@ -120,10 +118,6 @@ function broadcast(data) {
       }
     }
   });
-  
-  if (sentCount > 0) {
-    console.log(`📣 Broadcast to ${sentCount} clients: ${data.type}`);
-  }
 }
 
 // Utility function to send to a specific client

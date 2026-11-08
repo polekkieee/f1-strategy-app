@@ -1,4 +1,4 @@
-
+// strategyAI.js
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
@@ -7,110 +7,91 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ERS_MAX_JOULES = 4_000_000;
 
 const SuggestRaceStrategyOutput = z.object({
-    lapToBox: z.number(),
-    newTires: z.string(),
+    lapToBox: z.number().int(),                                  // 0 = no further stop needed
+    newTires: z.enum(["Soft", "Medium", "Hard", "Inter", "Wet"]),
     explanation: z.string(),
+    confidence: z.enum(["low", "medium", "high"]),
 });
 
-/**
- * Suggests a race strategy based on the provided input.
- * @param {Object} input - Race data for strategy suggestion.
- * @param {number} input.timestamp
- * @param {string} input.trackName
- * @param {string} input.sessionType
- * 
- * @param {number} input.currentLap
- * @param {number} input.totalLaps
- * 
- * @param {number} input.playerPosition
- * 
- * @param {number} input.gapAhead
- * @param {string} input.carAheadTireCompound
- * @param {number} input.carAheadTireAgeLaps
- * @param {number} input.carAheadLastLapTime
- * @param {number} input.gapBehind
- * @param {string} input.carBehindTireCompound
- * @param {number} input.carBehindTireAgeLaps
- * @param {number} input.carBehindLastLapTime
- * 
- * @param {number} input.lastLapTime
- * @param {number} input.bestLapTime
- * @param {number[]} input.lapTimeHistory
- * 
- * @param {string[]} input.carDamage
- * @param {string} input.tireCompound
- * @param {number} input.tireWearLF
- * @param {number} input.tireWearRF
- * @param {number} input.tireWearLR
- * @param {number} input.tireWearRR
- * @param {number} input.tireAgeLaps
- * @param {number} input.ersStorage
- * 
- * @param {number} input.pitStopWindowIdealLap
- * 
- * @param {string} input.weather
- * @param {string[]} input.weatherForecast
- * @param {string} input.forecastAccuracy
- * 
- * @param {string} input.trackStatus
- * @param {string[]} input.playerPenalties
- * 
- * @param {string[]} input.availableTires
- * 
- * 
- * @returns {Promise<Object>} - The suggested strategy in JSON format.
- */
+const SYSTEM_PROMPT = `You are a world-class Formula 1 race strategist advising a driver in a racing game.
+Rules:
+- lapToBox is an absolute lap number between the current lap and the final lap. Use 0 if no further stop is needed.
+- newTires must be a compound that appears under "Available tyre sets" (if the list is unknown, any compound).
+- Fuel margin is a surplus (+) or deficit (-) in laps versus race distance, NOT fuel remaining.
+- explanation: at most 8 words (e.g. "undercut ahead", "rain in 5 min").
+- confidence: low when data is sparse (few laps completed), high when the data clearly supports the call.`;
 
-export async function suggestAiRaceStrategy(input) {
-    const prompt = `
-You are a world-class Formula 1 race strategist. Analyze the following race data and suggest the optimal pit stop strategy.
+const fmt = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : "n/a");
 
-Race Data:
-- Timestamp: ${input.timestamp}
-- Track: ${input.trackName}
-- Session: ${input.sessionType}
+const formatForecast = (samples = []) =>
+    samples.length
+        ? samples.slice(0, 6)
+            .map((s) => `+${s.TimeOffsetMinutes}min ${s.Weather} (${s.RainPercentage}% rain)`)
+            .join("; ")
+        : "none available";
 
-- Current Lap: ${input.currentLap} / ${input.totalLaps}
-- Position: P${input.playerPosition}
+// NOTE: only wear and usableLife are used. I haven't verified what `laps` (m_lifeSpan) means yet.
+const formatTyreSets = (sets = []) =>
+    sets.length
+        ? sets.map((t) => `${t.visualCompound} (${t.wear}% worn, usable life ${t.usableLife} laps)`).join("; ")
+        : "unknown";
 
-- Gap Ahead: ${input.gapAhead}s | Car Ahead Tires: ${input.carAheadTireCompound}, Age: ${input.carAheadTireAgeLaps} laps, Last Lap: ${input.carAheadLastLapTime}s
-- Gap Behind: ${input.gapBehind}s | Car Behind Tires: ${input.carBehindTireCompound}, Age: ${input.carBehindTireAgeLaps} laps, Last Lap: ${input.carBehindLastLapTime}s
+const formatRival = (gap, compound, age, lastLap) =>
+    gap > 0
+        ? `${fmt(gap)}s away, ${compound || "?"} tyres ${age} laps old, last lap ${fmt(lastLap, 3)}s`
+        : "none";
 
-- Last Lap Time: ${input.lastLapTime}s
-- Best Lap Time: ${input.bestLapTime}s
-- Lap History: [${input.lapTimeHistory.length > 0 ? input.lapTimeHistory.join(", ") : "No lap history available"}]
+function buildPrompt(s) {
+    const lapsRemaining = s.totalLaps > 0 ? s.totalLaps - s.currentLap : null;
+    const recent = (s.lapTimeHistory ?? []).filter((t) => t > 0).slice(-8).map((t) => fmt(t, 3));
+    const margin = s.fuelRemainingLaps;
 
-- Car Damage: ${input.carDamage && input.carDamage.length > 0 ? input.carDamage.join(", ") : "None"}
-- Current Tires: ${input.tireCompound}, Wear Left Front: ${input.tireWearLF}%, Wear Right Front: ${input.tireWearRF}%, Wear Left Rear: ${input.tireWearLR}%, Wear Right Rear: ${input.tireWearRR}%, Age: ${input.tireAgeLaps} laps
-- ERS Storage: ${input.ersStorage}%
+    return `
+Session: ${s.sessionType} at ${s.trackName}
+Lap ${s.currentLap} of ${s.totalLaps || "?"}${lapsRemaining !== null ? ` (${lapsRemaining} remaining)` : ""}
+Position: P${s.playerPosition}
+Pit status: ${s.pitStatus || "none"}, stops made: ${s.numPitStopsTaken}
+Game's own suggested pit lap (a hint only): ${s.pitStopWindowIdealLap > 0 ? s.pitStopWindowIdealLap : "none"}
 
-- Current Ideal Pit Lap: Lap ${input.pitStopWindowIdealLap}
+Car ahead: ${formatRival(s.gapAhead, s.carAheadTireCompound, s.carAheadTireAgeLaps, s.carAheadLastLapTime)}
+Car behind: ${formatRival(s.gapBehind, s.carBehindTireCompound, s.carBehindTireAgeLaps, s.carBehindLastLapTime)}
 
-- Weather: ${input.weather}
-- Forecast: [${input.weatherForecast.length > 0 ? input.weatherForecast.join(", ") : "No forecast available"}]
-- Forecast Accuracy: ${input.forecastAccuracy}
+Last lap: ${fmt(s.lastLapTime, 3)}s | Best lap: ${fmt(s.bestLapTime, 3)}s
+Recent laps (oldest to newest): ${recent.length ? recent.join(", ") : "none yet"}
 
-- Track Status: ${input.trackStatus}
-- Penalties: [${input.playerPenalties.length > 0 ? input.playerPenalties.join(", ") : "None"}]
+Current tyres: ${s.tireCompound}, ${s.tireAgeLaps} laps old
+Tyre wear (% worn): FL ${s.tireWearLF}, FR ${s.tireWearRF}, RL ${s.tireWearLR}, RR ${s.tireWearRR}
+Available tyre sets: ${formatTyreSets(s.availableTires)}
+Fuel margin: ${margin >= 0 ? "+" : ""}${fmt(margin)} laps (positive = surplus, negative = will run short)
+ERS: ${fmt(Math.min(100, (s.ersStorage / ERS_MAX_JOULES) * 100), 0)}% charged
+Damage: ${s.carDamage?.length ? s.carDamage.join(", ") : "none"}
 
-Return a JSON object with the following keys:
-- lapToBox: The lap number when the driver should pit.
-- newTires: The tire compound to switch to (soft, medium, hard, inter, wet).
-- explanation: A very short reason (e.g., "undercut ahead", "rain incoming", "reduce tire wear"). Keep it to a few words.
-`;
+Weather now: ${s.weather} (forecast accuracy: ${s.forecastAccuracy || "unknown"})
+Forecast: ${formatForecast(s.weatherForecast)}
+Safety car: ${s.safetyCarStatus || "unknown"}
+Penalties: ${s.totalPenaltySeconds}s added; ${s.playerPenalties?.length ? s.playerPenalties.join(", ") : "none pending"}
+`.trim();
+}
 
+function sanitize(plan, s) {
+    if (!plan) throw new Error("AI returned no plan");
+    if (plan.lapToBox === 0) return plan;
+    const min = s.currentLap;
+    const max = s.totalLaps > 0 ? s.totalLaps : plan.lapToBox;
+    return { ...plan, lapToBox: Math.min(Math.max(plan.lapToBox, min), max) };
+}
+
+export async function suggestAiRaceStrategy(state) {
     const response = await openai.responses.parse({
         model: "gpt-4o-mini",
         input: [
-            { role: "system", content: "You are a helpful assistant." },
-            { role: "user", content: prompt },
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: buildPrompt(state) },
         ],
-        text: {
-            format: zodTextFormat(SuggestRaceStrategyOutput, "strategy"),
-        },
+        text: { format: zodTextFormat(SuggestRaceStrategyOutput, "strategy") },
     });
-
-    return response.output_parsed;
+    return sanitize(response.output_parsed, state);
 }

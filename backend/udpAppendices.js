@@ -1,3 +1,4 @@
+// udpAppendices.js
 // F1 25 UDP Data Constants and Lookup Tables
 // Based on the official F1 25 UDP specification
 
@@ -654,7 +655,7 @@ const F1_25_HELPERS = {
   },
 
   // Get safety car status name
-  getTrackStatus: (statusId) => {
+  getSafetyCarStatus: (statusId) => {
     return F1_25_CONSTANTS.SAFETY_CAR_STATUS[statusId] || 'Unknown Status';
   },
 

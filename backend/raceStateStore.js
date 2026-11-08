@@ -1,7 +1,9 @@
+// raceStateStore.js
 class RaceStateStore {
     static #instance;
     #state;
     #listeners;
+    #initialState
 
     constructor() {
         if (RaceStateStore.#instance) {
@@ -11,16 +13,18 @@ class RaceStateStore {
         this.#listeners = new Set();
         
         // Define the initial shape of your telemetry data
-        this.#state = {
+        this.#initialState = {
             timestamp: 0,
             trackName: "",
             sessionType: "",
             totalLaps: 0,
             pitStopWindowIdealLap: 0,
+            pitStatus: "",
+            numPitStopsTaken: 0,
             weather: "",
             weatherForecast: [],
             forecastAccuracy: "",
-            trackStatus: "",
+            safetyCarStatus: "",
             currentLap: 0,
             playerPosition: 0,
             gapAhead: 0,
@@ -41,17 +45,27 @@ class RaceStateStore {
             tireWearRR: 0,
             tireAgeLaps: 0,
             ersStorage: 0,
+            fuelRemainingLaps: 0,
             carDamage: [],
             playerPenalties: [],
+            totalPenaltySeconds: 0,
             availableTires: []
         };
+
+        this.#state = structuredClone(this.#initialState);
 
         RaceStateStore.#instance = this;
     }
 
-    // Read-only access to current state
+    // Get the current state
     get state() {
         return this.#state;
+    }
+
+    reset() {
+        for (const k of Object.keys(this.#state)) delete this.#state[k];
+        Object.assign(this.#state, structuredClone(this.#initialState));
+        this.#notify();
     }
 
     // Pass a callback to safely mutate the state
