@@ -394,5 +394,99 @@ describe("processPacket - Dynamic Player Car Index & Rival Interval Resolution (
     });
 });
 
+describe("processPacket - Segregated Penalty Pipeline (#4)", () => {
+    beforeEach(() => {
+        raceStore.reset();
+    });
+
+    it("segregates time penalties from playerPenalties while tracking cumulative totalPenaltySeconds from lap data", () => {
+        const timePenaltyEvent = createEventPacket({
+            m_eventStringCode: "PENA",
+            m_eventDetails: { vehicleIdx: 0, penaltyType: 4, time: 5 },
+        });
+        const secondTimePenaltyEvent = createEventPacket({
+            m_eventStringCode: "PENA",
+            m_eventDetails: { vehicleIdx: 0, penaltyType: 4, time: 3 },
+        });
+        const lapWithAccumulatedPenalties = createLapDataPacket({
+            carOverrides: {
+                0: {
+                    m_carPosition: 3,
+                    m_currentLapNum: 10,
+                    m_penalties: 8,
+                },
+            },
+        });
+
+        processPacket(raceStore.state, timePenaltyEvent);
+        processPacket(raceStore.state, secondTimePenaltyEvent);
+        processPacket(raceStore.state, lapWithAccumulatedPenalties);
+
+        assert.deepEqual(raceStore.state.playerPenalties, []);
+        assert.equal(raceStore.state.totalPenaltySeconds, 8);
+    });
+
+    it("records actionable penalties for the player and removes a single matching instance upon receiving DTSV or SGSV", () => {
+        const driveThroughEvent = createEventPacket({
+            m_eventStringCode: "PENA",
+            m_eventDetails: { vehicleIdx: 0, penaltyType: 0 },
+        });
+        const stopAndGoEvent = createEventPacket({
+            m_eventStringCode: "PENA",
+            m_eventDetails: { vehicleIdx: 0, penaltyType: 1 },
+        });
+        const rivalDriveThroughServed = createEventPacket({
+            m_eventStringCode: "DTSV",
+            m_eventDetails: { vehicleIdx: 5 },
+        });
+        const playerDriveThroughServed = createEventPacket({
+            m_eventStringCode: "DTSV",
+            m_eventDetails: { vehicleIdx: 0 },
+        });
+        const playerStopAndGoServed = createEventPacket({
+            m_eventStringCode: "SGSV",
+            m_eventDetails: { vehicleIdx: 0 },
+        });
+
+        // Player receives two Drive throughs and two Stop and go penalties
+        processPacket(raceStore.state, driveThroughEvent);
+        processPacket(raceStore.state, stopAndGoEvent);
+        processPacket(raceStore.state, driveThroughEvent);
+        processPacket(raceStore.state, stopAndGoEvent);
+
+        assert.deepEqual(raceStore.state.playerPenalties, [
+            "Drive through",
+            "Stop and go",
+            "Drive through",
+            "Stop and go",
+        ]);
+
+        // Rival serving a penalty does not affect playerPenalties
+        processPacket(raceStore.state, rivalDriveThroughServed);
+        assert.equal(raceStore.state.playerPenalties.length, 4);
+
+        // Serving one Drive through removes only one instance
+        processPacket(raceStore.state, playerDriveThroughServed);
+        assert.deepEqual(raceStore.state.playerPenalties, [
+            "Stop and go",
+            "Drive through",
+            "Stop and go",
+        ]);
+
+        // Serving one Stop and go removes only one instance
+        processPacket(raceStore.state, playerStopAndGoServed);
+        assert.deepEqual(raceStore.state.playerPenalties, [
+            "Drive through",
+            "Stop and go",
+        ]);
+
+        // Serving remaining penalties clears the list
+        processPacket(raceStore.state, playerDriveThroughServed);
+        processPacket(raceStore.state, playerStopAndGoServed);
+        assert.deepEqual(raceStore.state.playerPenalties, []);
+    });
+});
+
+
 
 

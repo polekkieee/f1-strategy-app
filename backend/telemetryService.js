@@ -5,6 +5,16 @@ import { raceStore, createInitialState } from "./raceStateStore.js";
 const { PACKETS } = constants;
 const { PACKET_IDS } = F1_25_CONSTANTS;
 
+const ACTIONABLE_PENALTIES = {
+    DRIVE_THROUGH: "Drive through",
+    STOP_AND_GO: "Stop and go",
+};
+
+function removeFirstPlayerPenalty(state, penalty) {
+    const idx = state.playerPenalties.indexOf(penalty);
+    if (idx !== -1) state.playerPenalties.splice(idx, 1);
+}
+
 let client = null;
 
 function getPacketTimestamp(packet) {
@@ -197,21 +207,20 @@ function handleEvent(state, eventData) {
         case "PENA": // Penalty
             if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex) {
                 switch (eventData.m_eventDetails.penaltyType) {
-                    case 0: state.playerPenalties.push("Drive through"); break;
-                    case 1: state.playerPenalties.push("Stop and go"); break;
-                    case 4: state.playerPenalties.push("Time penalty: " + eventData.m_eventDetails.time); break;
+                    case 0: state.playerPenalties.push(ACTIONABLE_PENALTIES.DRIVE_THROUGH); break;
+                    case 1: state.playerPenalties.push(ACTIONABLE_PENALTIES.STOP_AND_GO); break;
                     default: break;
                 }
             }
             break;
         case "DTSV": // Drive through served
-            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex && state.playerPenalties.find(penalty => penalty === "Drive through")) {
-                state.playerPenalties = state.playerPenalties.filter(p => p !== "Drive through");
+            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex) {
+                removeFirstPlayerPenalty(state, ACTIONABLE_PENALTIES.DRIVE_THROUGH);
             }
             break;
         case "SGSV": // Stop go served
-            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex && state.playerPenalties.find(penalty => penalty === "Stop and go")) {
-                state.playerPenalties = state.playerPenalties.filter(penalty => penalty !== "Stop and go");
+            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex) {
+                removeFirstPlayerPenalty(state, ACTIONABLE_PENALTIES.STOP_AND_GO);
             }
             break;
         default: break;
