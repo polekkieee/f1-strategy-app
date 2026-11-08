@@ -1,4 +1,47 @@
 // raceStateStore.js
+export function createInitialState() {
+    return {
+        timestamp: 0,
+        trackName: "",
+        sessionType: "",
+        totalLaps: 0,
+        pitStopWindowIdealLap: 0,
+        pitStatus: "",
+        numPitStopsTaken: 0,
+        weather: "",
+        weatherForecast: [],
+        forecastAccuracy: "",
+        safetyCarStatus: "",
+        currentLap: 0,
+        playerPosition: 0,
+        carAheadIndex: -1,
+        carBehindIndex: -1,
+        gapAhead: 0,
+        carAheadLastLapTime: 0,
+        gapBehind: 0,
+        carBehindLastLapTime: 0,
+        lastLapTime: 0,
+        lapTimeHistory: [],
+        bestLapTime: 0,
+        carAheadTireCompound: "",
+        carAheadTireAgeLaps: 0,
+        carBehindTireCompound: "",
+        carBehindTireAgeLaps: 0,
+        tireCompound: "",
+        tireWearLF: 0,
+        tireWearRF: 0,
+        tireWearLR: 0,
+        tireWearRR: 0,
+        tireAgeLaps: 0,
+        ersStorage: 0,
+        fuelRemainingLaps: 0,
+        carDamage: [],
+        playerPenalties: [],
+        totalPenaltySeconds: 0,
+        availableTires: []
+    };
+}
+
 class RaceStateStore {
     static #instance;
     #state;
@@ -13,44 +56,7 @@ class RaceStateStore {
         this.#listeners = new Set();
         
         // Define the initial shape of your telemetry data
-        this.#initialState = {
-            timestamp: 0,
-            trackName: "",
-            sessionType: "",
-            totalLaps: 0,
-            pitStopWindowIdealLap: 0,
-            pitStatus: "",
-            numPitStopsTaken: 0,
-            weather: "",
-            weatherForecast: [],
-            forecastAccuracy: "",
-            safetyCarStatus: "",
-            currentLap: 0,
-            playerPosition: 0,
-            gapAhead: 0,
-            carAheadLastLapTime: 0,
-            gapBehind: 0,
-            carBehindLastLapTime: 0,
-            lastLapTime: 0,
-            lapTimeHistory: [],
-            bestLapTime: 0,
-            carAheadTireCompound: "",
-            carAheadTireAgeLaps: 0,
-            carBehindTireCompound: "",
-            carBehindTireAgeLaps: 0,
-            tireCompound: "",
-            tireWearLF: 0,
-            tireWearRF: 0,
-            tireWearLR: 0,
-            tireWearRR: 0,
-            tireAgeLaps: 0,
-            ersStorage: 0,
-            fuelRemainingLaps: 0,
-            carDamage: [],
-            playerPenalties: [],
-            totalPenaltySeconds: 0,
-            availableTires: []
-        };
+        this.#initialState = createInitialState();
 
         this.#state = structuredClone(this.#initialState);
 

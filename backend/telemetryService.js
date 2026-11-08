@@ -1,22 +1,32 @@
 import { F1TelemetryClient, constants } from "@deltazeroproduction/f1-udp-parser";
-import { F1_25_CONSTANTS, F1_25_HELPERS } from "./udpAppendices.js"
-import { raceStore } from "./raceStateStore.js";
+import { F1_25_CONSTANTS, F1_25_HELPERS } from "./udpAppendices.js";
+import { raceStore, createInitialState } from "./raceStateStore.js";
+
 const { PACKETS } = constants;
+const { PACKET_IDS } = F1_25_CONSTANTS;
 
+let client = null;
 
-let initialize = true;
-
-let packetInfo = {
+const packetInfo = {
     format: 2025,                   // Header
     playerCarIndex: 0,              // Header
+};
+
+function getPacketTimestamp(packet) {
+    const sessionTime = packet?.m_header?.m_sessionTime;
+    return typeof sessionTime === "number" ? Math.round(sessionTime * 1000) : 0;
 }
 
-let gridOrder = []
-let carAhead = -1;
-let carBehind = -1;
+function getPlayerCarIndex(packet) {
+    return packet?.m_header?.m_playerCarIndex ?? 0;
+}
 
-function updateGridOrder(lapDataPacket, playerPosition) {
-    if (!lapDataPacket || !Array.isArray(lapDataPacket.m_lapData)) return [];
+function updateGridOrder(state, lapDataPacket, playerPosition) {
+    if (!lapDataPacket || !Array.isArray(lapDataPacket.m_lapData)) {
+        state.carAheadIndex = -1;
+        state.carBehindIndex = -1;
+        return [];
+    }
 
     const cars = lapDataPacket.m_lapData
         .map((car, idx) => ({
@@ -31,9 +41,8 @@ function updateGridOrder(lapDataPacket, playerPosition) {
     const indexBehind = playerPosition;
 
     // Strict bounds checking to prevent undefined array reads
-    carAhead = checkGridIndexBounds(indexAhead, cars);
-
-    carBehind = checkGridIndexBounds(indexBehind, cars);
+    state.carAheadIndex = checkGridIndexBounds(indexAhead, cars);
+    state.carBehindIndex = checkGridIndexBounds(indexBehind, cars);
 
     return cars;
 }
@@ -45,7 +54,6 @@ function checkGridIndexBounds(index, cars) {
         : -1;
 }
 
-
 /*
 *   'port' is optional, defaults to 20777
 *   'bigintEnabled' is optional, setting it to false makes the parser skip bigint values,
@@ -55,14 +63,6 @@ function checkGridIndexBounds(index, cars) {
 *   'skipParsing' is optional, setting it to true will make the client not parse and emit content. You can consume telemetry data using forwardAddresses instead.
 *                   defaults to false
 */
-
-const client = new F1TelemetryClient({ port: 20777 });
-client.on(PACKETS.event, (data) => handleEvent(data));
-client.on(PACKETS.lapData, (data) => handleLapData(data));
-client.on(PACKETS.session, (data) => handleSession(data));
-client.on(PACKETS.carStatus, (data) => handleCarStatus(data));
-client.on(PACKETS.carDamage, (data) => handleCarDamage(data));
-client.on(PACKETS.tyreSets, (data) => handleTyreSets(data));
 
 // client.on(PACKETS.participants, nothing);
 // client.on(PACKETS.motion, nothing);
@@ -74,190 +74,221 @@ client.on(PACKETS.tyreSets, (data) => handleTyreSets(data));
 // client.on(PACKETS.motionEx, nothing);
 // function nothing() { }
 
-function initialPacketInfo(packetInfoData) {
-    packetInfo.format = packetInfoData.m_header.m_packetFormat;
-    packetInfo.playerCarIndex = packetInfoData.m_header.m_playerCarIndex;
+function handleSession(state, sessionData) {
+    state.timestamp = getPacketTimestamp(sessionData);
+    state.trackName = F1_25_HELPERS.getTrackName(sessionData.m_trackId);
+    state.sessionType = F1_25_HELPERS.getSessionTypeName(sessionData.m_sessionType);
+    state.totalLaps = sessionData.m_totalLaps;
+    state.pitStopWindowIdealLap = sessionData.m_pitStopWindowIdealLap;
+    state.weather = F1_25_HELPERS.getWeatherDescription(sessionData.m_weather);
+
+    state.weatherForecast = sessionData.m_weatherForecastSamples?.filter(f => f.m_sessionType === sessionData.m_sessionType).map(forecast => ({
+        TimeOffsetMinutes: forecast.m_timeOffset,
+        Weather: F1_25_HELPERS.getWeatherDescription(forecast.m_weather),
+        RainPercentage: forecast.m_rainPercentage
+    })) || [];
+
+    state.forecastAccuracy = sessionData.m_forecastAccuracy === 0 ? "Perfect" : "Approximate";
+    state.safetyCarStatus = F1_25_HELPERS.getSafetyCarStatus(sessionData.m_safetyCarStatus);
 }
 
-function handleSession(sessionData) {
-    if (initialize) {
-        initialPacketInfo(sessionData);
-        initialize = false;
+function handleLapData(state, lapData) {
+    state.timestamp = getPacketTimestamp(lapData);
+    const playerCarIndex = getPlayerCarIndex(lapData);
+    const me = lapData.m_lapData[playerCarIndex];
+    if (!me) return;
+
+    state.playerPosition = me.m_carPosition;
+    updateGridOrder(state, lapData, state.playerPosition);
+
+    state.pitStatus = me.m_pitStatus !== 0 ? "pitting" : "none";   // 1 = pit lane, 2 = pit area
+    state.numPitStopsTaken = me.m_numPitStops;
+    state.totalPenaltySeconds = me.m_penalties; // accumulated seconds
+
+    if (state.currentLap < me.m_currentLapNum) {
+        state.lastLapTime = me.m_lastLapTimeInMS / 1000;
+        state.lapTimeHistory.push(state.lastLapTime);
+        state.currentLap = me.m_currentLapNum;
+        if (state.bestLapTime === 0 || (state.lastLapTime > 0 && state.lastLapTime < state.bestLapTime)) {
+            state.bestLapTime = state.lastLapTime;
+        }
     }
 
-    raceStore.mutate((state) => {
-        state.timestamp = Date.now();
-        state.trackName = F1_25_HELPERS.getTrackName(sessionData.m_trackId);
-        state.sessionType = F1_25_HELPERS.getSessionTypeName(sessionData.m_sessionType);
-        state.totalLaps = sessionData.m_totalLaps;
-        state.pitStopWindowIdealLap = sessionData.m_pitStopWindowIdealLap;
-        state.weather = F1_25_HELPERS.getWeatherDescription(sessionData.m_weather);
+    const carAhead = state.carAheadIndex ?? -1;
+    const carBehind = state.carBehindIndex ?? -1;
 
-        state.weatherForecast = sessionData.m_weatherForecastSamples?.filter(f => f.m_sessionType === sessionData.m_sessionType).map(forecast => ({
-            TimeOffsetMinutes: forecast.m_timeOffset,
-            Weather: F1_25_HELPERS.getWeatherDescription(forecast.m_weather),
-            RainPercentage: forecast.m_rainPercentage
-        })) || [];
-
-        state.forecastAccuracy = sessionData.m_forecastAccuracy === 0 ? "Perfect" : "Approximate";
-        state.safetyCarStatus = F1_25_HELPERS.getSafetyCarStatus(sessionData.m_safetyCarStatus);
-    });
+    if (carAhead !== -1) {
+        state.gapAhead = me.m_deltaToCarInFrontMinutesPart * 60 + me.m_deltaToCarInFrontMSPart / 1000;
+        state.carAheadLastLapTime = lapData.m_lapData[carAhead].m_lastLapTimeInMS / 1000;
+    } else {
+        state.gapAhead = 0;
+        state.carAheadLastLapTime = 0;
+    }
+    if (carBehind !== -1) {
+        state.gapBehind = lapData.m_lapData[carBehind].m_deltaToCarInFrontMinutesPart * 60 + lapData.m_lapData[carBehind].m_deltaToCarInFrontMSPart / 1000;
+        state.carBehindLastLapTime = lapData.m_lapData[carBehind].m_lastLapTimeInMS / 1000;
+    } else {
+        state.gapBehind = 0;
+        state.carBehindLastLapTime = 0;
+    }
 }
 
-function handleLapData(lapData) {
-    raceStore.mutate((state) => {
-        state.timestamp = Date.now();
-        const me = lapData.m_lapData[packetInfo.playerCarIndex];
+function handleCarStatus(state, carStatusData) {
+    state.timestamp = getPacketTimestamp(carStatusData);
+    const playerCarIndex = getPlayerCarIndex(carStatusData);
+    const carAhead = state.carAheadIndex ?? -1;
+    const carBehind = state.carBehindIndex ?? -1;
 
-        state.playerPosition = me.m_carPosition;
-        gridOrder = updateGridOrder(lapData, state.playerPosition);
+    if (carAhead !== -1 && carStatusData.m_carStatusData[carAhead]) {
+        state.carAheadTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carAhead].m_visualTyreCompound, true);
+        state.carAheadTireAgeLaps = carStatusData.m_carStatusData[carAhead].m_tyresAgeLaps;
+    } else {
+        state.carAheadTireCompound = "";
+        state.carAheadTireAgeLaps = 0;
+    }
+    if (carBehind !== -1 && carStatusData.m_carStatusData[carBehind]) {
+        state.carBehindTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carBehind].m_visualTyreCompound, true);
+        state.carBehindTireAgeLaps = carStatusData.m_carStatusData[carBehind].m_tyresAgeLaps;
+    } else {
+        state.carBehindTireCompound = "";
+        state.carBehindTireAgeLaps = 0;
+    }
 
-        state.pitStatus = me.m_pitStatus !== 0 ? "pitting" : "none";   // 1 = pit lane, 2 = pit area
+    const myStatus = carStatusData.m_carStatusData[playerCarIndex];
+    if (!myStatus) return;
 
-        state.numPitStopsTaken = me.m_numPitStops;
-        state.totalPenaltySeconds = me.m_penalties; // accumulated seconds
-
-        state.numPitStopsTaken = me.m_numPitStops;
-
-        if (state.currentLap < me.m_currentLapNum) {
-            state.lastLapTime = me.m_lastLapTimeInMS / 1000;
-            state.lapTimeHistory.push(state.lastLapTime);
-            state.currentLap = me.m_currentLapNum;
-            if (state.bestLapTime === 0 || (state.lastLapTime > 0 && state.lastLapTime < state.bestLapTime)) {
-                state.bestLapTime = state.lastLapTime;
-            }
-        }
-
-        if (carAhead !== -1) {
-            state.gapAhead = lapData.m_lapData[packetInfo.playerCarIndex].m_deltaToCarInFrontMinutesPart * 60 + lapData.m_lapData[packetInfo.playerCarIndex].m_deltaToCarInFrontMSPart / 1000;
-            state.carAheadLastLapTime = lapData.m_lapData[carAhead].m_lastLapTimeInMS / 1000;
-        } else {
-            state.gapAhead = 0;
-            state.carAheadLastLapTime = 0;
-        }
-        if (carBehind !== -1) {
-            state.gapBehind = lapData.m_lapData[carBehind].m_deltaToCarInFrontMinutesPart * 60 + lapData.m_lapData[carBehind].m_deltaToCarInFrontMSPart / 1000;
-            state.carBehindLastLapTime = lapData.m_lapData[carBehind].m_lastLapTimeInMS / 1000;
-        } else {
-            state.gapBehind = 0;
-            state.carBehindLastLapTime = 0;
-        }
-
-    });
+    state.tireCompound = F1_25_HELPERS.getTyreCompound(myStatus.m_visualTyreCompound, true);
+    state.tireAgeLaps = myStatus.m_tyresAgeLaps;
+    state.ersStorage = myStatus.m_ersStoreEnergy;
+    state.fuelRemainingLaps = myStatus.m_fuelRemainingLaps;
 }
 
-function handleCarStatus(carStatusData) {
-    raceStore.mutate((state) => {
-        state.timestamp = Date.now();
+function handleCarDamage(state, carDamageData) {
+    state.carDamage = [];
+    const playerCarIndex = getPlayerCarIndex(carDamageData);
+    const damage = carDamageData.m_carDamageData[playerCarIndex];
+    if (!damage) return;
 
-        if (carAhead !== -1) {
-            state.carAheadTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carAhead].m_visualTyreCompound, true);
-            state.carAheadTireAgeLaps = carStatusData.m_carStatusData[carAhead].m_tyresAgeLaps;
-        } else{
-            state.carAheadTireCompound = "";
-            state.carAheadTireAgeLaps = 0;
-        }
-        if (carBehind !== -1) {
-            state.carBehindTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carBehind].m_visualTyreCompound, true);
-            state.carBehindTireAgeLaps = carStatusData.m_carStatusData[carBehind].m_tyresAgeLaps;
-        } else {
-            state.carBehindTireCompound = "";
-            state.carBehindTireAgeLaps = 0;
-        }
-        
-        state.tireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_visualTyreCompound, true);
+    if (damage.m_frontLeftWingDamage > 0) state.carDamage.push("Front Left Wing: " + damage.m_frontLeftWingDamage);
+    if (damage.m_frontRightWingDamage > 0) state.carDamage.push("Front Right Wing: " + damage.m_frontRightWingDamage);
+    if (damage.m_rearWingDamage > 0) state.carDamage.push("Rear Wing: " + damage.m_rearWingDamage);
+    if (damage.m_floorDamage > 0) state.carDamage.push("Floor: " + damage.m_floorDamage);
+    if (damage.m_diffuserDamage > 0) state.carDamage.push("Diffuser: " + damage.m_diffuserDamage);
+    if (damage.m_sidepodDamage > 0) state.carDamage.push("Sidepod: " + damage.m_sidepodDamage);
+    if (damage.m_drsFault) state.carDamage.push("(Irreparable) DRS fault");
+    if (damage.m_ersFault) state.carDamage.push("(Irreparable) ERS fault");
 
-        state.tireAgeLaps = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_tyresAgeLaps;
-        state.ersStorage = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_ersStoreEnergy;
-        state.fuelRemainingLaps = carStatusData.m_carStatusData[packetInfo.playerCarIndex].m_fuelRemainingLaps;
-    });
+    state.tireWearLR = damage.m_tyresWear[0];
+    state.tireWearRR = damage.m_tyresWear[1];
+    state.tireWearLF = damage.m_tyresWear[2];
+    state.tireWearRF = damage.m_tyresWear[3];
 }
 
-function handleCarDamage(carDamageData) {
-    raceStore.mutate((state) => {
-        state.carDamage = [];
-        const damage = carDamageData.m_carDamageData[packetInfo.playerCarIndex];
-        if (!damage) return;
-
-        if (damage.m_frontLeftWingDamage > 0) state.carDamage.push("Front Left Wing: " + damage.m_frontLeftWingDamage);
-        if (damage.m_frontRightWingDamage > 0) state.carDamage.push("Front Right Wing: " + damage.m_frontRightWingDamage);
-        if (damage.m_rearWingDamage > 0) state.carDamage.push("Rear Wing: " + damage.m_rearWingDamage);
-        if (damage.m_floorDamage > 0) state.carDamage.push("Floor: " + damage.m_floorDamage);
-        if (damage.m_diffuserDamage > 0) state.carDamage.push("Diffuser: " + damage.m_diffuserDamage);
-        if (damage.m_sidepodDamage > 0) state.carDamage.push("Sidepod: " + damage.m_sidepodDamage);
-        if (damage.m_drsFault) state.carDamage.push("(Irreparable) DRS fault");
-        if (damage.m_ersFault) state.carDamage.push("(Irreparable) ERS fault");
-
-        state.tireWearLR = damage.m_tyresWear[0];
-        state.tireWearRR = damage.m_tyresWear[1];
-        state.tireWearLF = damage.m_tyresWear[2];
-        state.tireWearRF = damage.m_tyresWear[3];
-    });
-}
-
-function handleEvent(eventData) {
+function handleEvent(state, eventData) {
     if (eventData.m_eventStringCode === "SEND") {
-        raceStore.reset();
-        initialize = true;
-        gridOrder = []; carAhead = -1; carBehind = -1;
+        for (const k of Object.keys(state)) delete state[k];
+        Object.assign(state, createInitialState());
         return;
     }
-    raceStore.mutate((state) => {
-        state.timestamp = Date.now();
-        switch (eventData.m_eventStringCode) {
-            case "SSTA": // Session Started
-                initialize = true;
-                break;
-            case "PENA": // Penalty
-                if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex) {
-                    switch (eventData.m_eventDetails.penaltyType) {
-                        case 0: state.playerPenalties.push("Drive through"); break;
-                        case 1: state.playerPenalties.push("Stop and go"); break;
-                        case 4: state.playerPenalties.push("Time penalty: " + eventData.m_eventDetails.time); break;
-                        default: break;
-                    }
+
+    state.timestamp = getPacketTimestamp(eventData);
+    const playerCarIndex = getPlayerCarIndex(eventData);
+
+    switch (eventData.m_eventStringCode) {
+        case "SSTA": // Session Started
+            break;
+        case "PENA": // Penalty
+            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex) {
+                switch (eventData.m_eventDetails.penaltyType) {
+                    case 0: state.playerPenalties.push("Drive through"); break;
+                    case 1: state.playerPenalties.push("Stop and go"); break;
+                    case 4: state.playerPenalties.push("Time penalty: " + eventData.m_eventDetails.time); break;
+                    default: break;
                 }
-                break;
-            case "DTSV": // Drive through served
-                if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex && state.playerPenalties.find(penalty => penalty === "Drive through")) {
-                    state.playerPenalties = state.playerPenalties.filter(p => p !== "Drive through");
-                }
-                break;
-            case "SGSV": // Stop go served
-                if (eventData.m_eventDetails.vehicleIdx === packetInfo.playerCarIndex && state.playerPenalties.find(penalty => penalty === "Stop and go")) {
-                    state.playerPenalties = state.playerPenalties.filter(penalty => penalty !== "Stop and go");
-                }
-                break;
-            default: break;
-        }
-    });
+            }
+            break;
+        case "DTSV": // Drive through served
+            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex && state.playerPenalties.find(penalty => penalty === "Drive through")) {
+                state.playerPenalties = state.playerPenalties.filter(p => p !== "Drive through");
+            }
+            break;
+        case "SGSV": // Stop go served
+            if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex && state.playerPenalties.find(penalty => penalty === "Stop and go")) {
+                state.playerPenalties = state.playerPenalties.filter(penalty => penalty !== "Stop and go");
+            }
+            break;
+        default: break;
+    }
 }
 
-function handleTyreSets(tyreSetsData) {
-    raceStore.mutate((state) => {
-        if (tyreSetsData.m_carIdx === packetInfo.playerCarIndex) {
-            state.timestamp = Date.now();
-            state.availableTires = [];
-            tyreSetsData.m_tyreSetData.forEach(set => {
-                if (!set.m_fitted && set.m_available) {
-                    state.availableTires.push({
-                        visualCompound: F1_25_HELPERS.getTyreCompound(set.m_visualTyreCompound, true),
-                        wear: set.m_wear,
-                        lapsLeft: set.m_lifeSpan,
-                        usableLife: set.m_usableLife,
-                    });
-                }
-            });
-        }
-    });
+function handleTyreSets(state, tyreSetsData) {
+    const playerCarIndex = getPlayerCarIndex(tyreSetsData);
+    if (tyreSetsData.m_carIdx === playerCarIndex) {
+        state.timestamp = getPacketTimestamp(tyreSetsData);
+        state.availableTires = [];
+        tyreSetsData.m_tyreSetData.forEach(set => {
+            if (!set.m_fitted && set.m_available) {
+                state.availableTires.push({
+                    visualCompound: F1_25_HELPERS.getTyreCompound(set.m_visualTyreCompound, true),
+                    wear: set.m_wear,
+                    lapsLeft: set.m_lifeSpan,
+                    usableLife: set.m_usableLife,
+                });
+            }
+        });
+    }
+}
+
+export function processPacket(state, packet) {
+    if (!state || !packet?.m_header) {
+        return state;
+    }
+
+    switch (packet.m_header.m_packetId) {
+        case PACKET_IDS.SESSION:
+            handleSession(state, packet);
+            break;
+        case PACKET_IDS.LAP_DATA:
+            handleLapData(state, packet);
+            break;
+        case PACKET_IDS.EVENT:
+            handleEvent(state, packet);
+            break;
+        case PACKET_IDS.CAR_STATUS:
+            handleCarStatus(state, packet);
+            break;
+        case PACKET_IDS.CAR_DAMAGE:
+            handleCarDamage(state, packet);
+            break;
+        case PACKET_IDS.TYRE_SETS:
+            handleTyreSets(state, packet);
+            break;
+        default:
+            break;
+    }
+
+    return state;
 }
 
 export function start() {
+    if (!client) {
+        client = new F1TelemetryClient({ port: 20777 });
+        const dispatch = (data) => raceStore.mutate((state) => processPacket(state, data));
+        client.on(PACKETS.event, dispatch);
+        client.on(PACKETS.lapData, dispatch);
+        client.on(PACKETS.session, dispatch);
+        client.on(PACKETS.carStatus, dispatch);
+        client.on(PACKETS.carDamage, dispatch);
+        client.on(PACKETS.tyreSets, dispatch);
+    }
     client.start();
 }
 
 export function stop() {
-    client.stop();
+    if (client) {
+        client.stop();
+        client = null;
+    }
 }
 
-export default { packetInfo };
+export default { packetInfo, processPacket };
