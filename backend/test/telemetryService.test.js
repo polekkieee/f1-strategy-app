@@ -123,13 +123,16 @@ describe("processPacket - Additional F1 24/25 Packet Fixtures", () => {
         processPacket(raceStore.state, lapDataPacketFixture);
         processPacket(raceStore.state, carStatusPacketFixture);
 
-        assert.equal(raceStore.state.tireCompound, "Soft");
+        assert.equal(raceStore.state.actualTyreCompound, "C5");
+        assert.equal(raceStore.state.visualTyreCompound, "Soft");
         assert.equal(raceStore.state.tireAgeLaps, 4);
         assert.equal(raceStore.state.ersStorage, 3200000);
         assert.equal(raceStore.state.fuelRemainingLaps, 1.8);
-        assert.equal(raceStore.state.carAheadTireCompound, "Medium");
+        assert.equal(raceStore.state.carAheadActualTyreCompound, "C4");
+        assert.equal(raceStore.state.carAheadVisualTyreCompound, "Medium");
         assert.equal(raceStore.state.carAheadTireAgeLaps, 6);
-        assert.equal(raceStore.state.carBehindTireCompound, "Hard");
+        assert.equal(raceStore.state.carBehindActualTyreCompound, "C3");
+        assert.equal(raceStore.state.carBehindVisualTyreCompound, "Hard");
         assert.equal(raceStore.state.carBehindTireAgeLaps, 2);
     });
 
@@ -152,6 +155,7 @@ describe("processPacket - Additional F1 24/25 Packet Fixtures", () => {
         assert.deepEqual(raceStore.state.playerPenalties, ["Drive through"]);
         assert.deepEqual(raceStore.state.availableTires, [
             {
+                actualCompound: "C4",
                 visualCompound: "Medium",
                 wear: 0,
                 lapsLeft: 25,
@@ -169,8 +173,10 @@ describe("processPacket - Additional F1 24/25 Packet Fixtures", () => {
 
         // After reset, processing CarStatus without prior LapData should not read stale carAhead/carBehind
         processPacket(raceStore.state, carStatusPacketFixture);
-        assert.equal(raceStore.state.carAheadTireCompound, "");
-        assert.equal(raceStore.state.carBehindTireCompound, "");
+        assert.equal(raceStore.state.carAheadActualTyreCompound, "");
+        assert.equal(raceStore.state.carAheadVisualTyreCompound, "");
+        assert.equal(raceStore.state.carBehindActualTyreCompound, "");
+        assert.equal(raceStore.state.carBehindVisualTyreCompound, "");
         assert.equal(freshState.playerPosition, 2);
     });
 });
@@ -250,14 +256,15 @@ describe("processPacket - Dynamic Player Car Index & Rival Interval Resolution (
         const statusPacket = createCarStatusPacket({
             m_header: { m_playerCarIndex: playerIdx },
             carOverrides: {
-                5: { m_visualTyreCompound: 17, m_tyresAgeLaps: 10 }, // Medium
+                5: { m_actualTyreCompound: 19, m_visualTyreCompound: 17, m_tyresAgeLaps: 10 }, // C2 / Medium
                 [playerIdx]: {
+                    m_actualTyreCompound: 18, // C3
                     m_visualTyreCompound: 16, // Soft
                     m_tyresAgeLaps: 5,
                     m_ersStoreEnergy: 2500000,
                     m_fuelRemainingLaps: 2.4,
                 },
-                19: { m_visualTyreCompound: 18, m_tyresAgeLaps: 12 }, // Hard
+                19: { m_actualTyreCompound: 20, m_visualTyreCompound: 18, m_tyresAgeLaps: 12 }, // C1 / Hard
             },
         });
 
@@ -303,13 +310,16 @@ describe("processPacket - Dynamic Player Car Index & Rival Interval Resolution (
         assert.deepEqual(raceStore.state.availableTires, []);
         processPacket(raceStore.state, playerTyreSets);
 
-        assert.equal(raceStore.state.tireCompound, "Soft");
+        assert.equal(raceStore.state.actualTyreCompound, "C3");
+        assert.equal(raceStore.state.visualTyreCompound, "Soft");
         assert.equal(raceStore.state.tireAgeLaps, 5);
         assert.equal(raceStore.state.ersStorage, 2500000);
         assert.equal(raceStore.state.fuelRemainingLaps, 2.4);
-        assert.equal(raceStore.state.carAheadTireCompound, "Medium");
+        assert.equal(raceStore.state.carAheadActualTyreCompound, "C2");
+        assert.equal(raceStore.state.carAheadVisualTyreCompound, "Medium");
         assert.equal(raceStore.state.carAheadTireAgeLaps, 10);
-        assert.equal(raceStore.state.carBehindTireCompound, "Hard");
+        assert.equal(raceStore.state.carBehindActualTyreCompound, "C1");
+        assert.equal(raceStore.state.carBehindVisualTyreCompound, "Hard");
         assert.equal(raceStore.state.carBehindTireAgeLaps, 12);
         assert.equal(raceStore.state.tireWearLR, 20);
         assert.equal(raceStore.state.tireWearRR, 21);
@@ -569,6 +579,81 @@ describe("processPacket - Weather Forecast Sanitization & Padding Removal (#5)",
                 RainPercentage: 85,
             },
         ]);
+    });
+});
+
+describe("processPacket - Dual Tyre Compound (Actual C1-C5 & Visual) Tracking (#6)", () => {
+    beforeEach(() => {
+        raceStore.reset();
+    });
+
+    it("resolves actual Pirelli compounds (C1-C5, Inter, Wet) and visual compounds (Soft, Medium, Hard, Inter, Wet) alongside tyre age for player and rivals", () => {
+        // Set up grid: car 1 in P1 (ahead), player (car 0) in P2, car 2 in P3 (behind)
+        processPacket(raceStore.state, lapDataPacketFixture);
+
+        // Stint 1: Hard allocation (C1 = Hard, C2 = Medium, C3 = Soft)
+        const stint1Status = createCarStatusPacket({
+            carOverrides: {
+                0: { m_actualTyreCompound: 20, m_visualTyreCompound: 18, m_tyresAgeLaps: 14 }, // Player: C1 / Hard
+                1: { m_actualTyreCompound: 19, m_visualTyreCompound: 17, m_tyresAgeLaps: 11 }, // Ahead: C2 / Medium
+                2: { m_actualTyreCompound: 18, m_visualTyreCompound: 16, m_tyresAgeLaps: 7 },  // Behind: C3 / Soft
+            },
+        });
+
+        processPacket(raceStore.state, stint1Status);
+
+        assert.equal(raceStore.state.actualTyreCompound, "C1");
+        assert.equal(raceStore.state.visualTyreCompound, "Hard");
+        assert.equal(raceStore.state.tireAgeLaps, 14);
+        assert.equal(raceStore.state.carAheadActualTyreCompound, "C2");
+        assert.equal(raceStore.state.carAheadVisualTyreCompound, "Medium");
+        assert.equal(raceStore.state.carAheadTireAgeLaps, 11);
+        assert.equal(raceStore.state.carBehindActualTyreCompound, "C3");
+        assert.equal(raceStore.state.carBehindVisualTyreCompound, "Soft");
+        assert.equal(raceStore.state.carBehindTireAgeLaps, 7);
+
+        // Legacy single-compound fields should not exist on state
+        assert.equal("tireCompound" in raceStore.state, false);
+        assert.equal("carAheadTireCompound" in raceStore.state, false);
+        assert.equal("carBehindTireCompound" in raceStore.state, false);
+
+        // Stint 2: Softest dry & wet weather transitions (C4, C5, Inter, Wet)
+        const stint2Status = createCarStatusPacket({
+            carOverrides: {
+                0: { m_actualTyreCompound: 17, m_visualTyreCompound: 17, m_tyresAgeLaps: 1 }, // Player: C4 / Medium
+                1: { m_actualTyreCompound: 7, m_visualTyreCompound: 7, m_tyresAgeLaps: 3 },   // Ahead: Inter / Inter
+                2: { m_actualTyreCompound: 8, m_visualTyreCompound: 8, m_tyresAgeLaps: 2 },   // Behind: Wet / Wet
+            },
+        });
+
+        processPacket(raceStore.state, stint2Status);
+
+        assert.equal(raceStore.state.actualTyreCompound, "C4");
+        assert.equal(raceStore.state.visualTyreCompound, "Medium");
+        assert.equal(raceStore.state.tireAgeLaps, 1);
+        assert.equal(raceStore.state.carAheadActualTyreCompound, "Inter");
+        assert.equal(raceStore.state.carAheadVisualTyreCompound, "Inter");
+        assert.equal(raceStore.state.carAheadTireAgeLaps, 3);
+        assert.equal(raceStore.state.carBehindActualTyreCompound, "Wet");
+        assert.equal(raceStore.state.carBehindVisualTyreCompound, "Wet");
+        assert.equal(raceStore.state.carBehindTireAgeLaps, 2);
+
+        // Clears rival dual tyre compounds when player moves to P1 (no car ahead)
+        const leaderLapPacket = createLapDataPacket({
+            carOverrides: {
+                0: { m_carPosition: 1, m_currentLapNum: 4 },
+                1: { m_carPosition: 2, m_currentLapNum: 4 },
+            },
+        });
+        processPacket(raceStore.state, leaderLapPacket);
+        processPacket(raceStore.state, stint2Status);
+
+        assert.equal(raceStore.state.carAheadActualTyreCompound, "");
+        assert.equal(raceStore.state.carAheadVisualTyreCompound, "");
+        assert.equal(raceStore.state.carAheadTireAgeLaps, 0);
+        assert.equal(raceStore.state.carBehindActualTyreCompound, "Inter");
+        assert.equal(raceStore.state.carBehindVisualTyreCompound, "Inter");
+        assert.equal(raceStore.state.carBehindTireAgeLaps, 3);
     });
 });
 

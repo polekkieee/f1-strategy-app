@@ -33,15 +33,20 @@ const formatForecast = (samples = []) =>
             .join("; ")
         : "none available";
 
+const formatCompound = (visual, actual) =>
+    visual && actual && visual !== actual
+        ? `${visual} (${actual})`
+        : visual || actual || "?";
+
 // NOTE: only wear and usableLife are used. I haven't verified what `laps` (m_lifeSpan) means yet.
 const formatTyreSets = (sets = []) =>
     sets.length
-        ? sets.map((t) => `${t.visualCompound} (${t.wear}% worn, usable life ${t.usableLife} laps)`).join("; ")
+        ? sets.map((t) => `${formatCompound(t.visualCompound, t.actualCompound)} (${t.wear}% worn, usable life ${t.usableLife} laps)`).join("; ")
         : "unknown";
 
-const formatRival = (gap, compound, age, lastLap) =>
+const formatRival = (gap, visualCompound, actualCompound, age, lastLap) =>
     gap > 0
-        ? `${fmt(gap)}s away, ${compound || "?"} tyres ${age} laps old, last lap ${fmt(lastLap, 3)}s`
+        ? `${fmt(gap)}s away, ${formatCompound(visualCompound, actualCompound)} tyres ${age} laps old, last lap ${fmt(lastLap, 3)}s`
         : "none";
 
 function buildPrompt(s) {
@@ -56,13 +61,13 @@ Position: P${s.playerPosition}
 Pit status: ${s.pitStatus || "none"}, stops made: ${s.numPitStopsTaken}
 Game's own suggested pit lap (a hint only): ${s.pitStopWindowIdealLap > 0 ? s.pitStopWindowIdealLap : "none"}
 
-Car ahead: ${formatRival(s.gapAhead, s.carAheadTireCompound, s.carAheadTireAgeLaps, s.carAheadLastLapTime)}
-Car behind: ${formatRival(s.gapBehind, s.carBehindTireCompound, s.carBehindTireAgeLaps, s.carBehindLastLapTime)}
+Car ahead: ${formatRival(s.gapAhead, s.carAheadVisualTyreCompound, s.carAheadActualTyreCompound, s.carAheadTireAgeLaps, s.carAheadLastLapTime)}
+Car behind: ${formatRival(s.gapBehind, s.carBehindVisualTyreCompound, s.carBehindActualTyreCompound, s.carBehindTireAgeLaps, s.carBehindLastLapTime)}
 
 Last lap: ${fmt(s.lastLapTime, 3)}s | Best lap: ${fmt(s.bestLapTime, 3)}s
 Recent laps (oldest to newest): ${recent.length ? recent.join(", ") : "none yet"}
 
-Current tyres: ${s.tireCompound}, ${s.tireAgeLaps} laps old
+Current tyres: ${formatCompound(s.visualTyreCompound, s.actualTyreCompound)}, ${s.tireAgeLaps} laps old
 Tyre wear (% worn): FL ${s.tireWearLF}, FR ${s.tireWearRF}, RL ${s.tireWearLR}, RR ${s.tireWearRR}
 Available tyre sets: ${formatTyreSets(s.availableTires)}
 Fuel margin: ${margin >= 0 ? "+" : ""}${fmt(margin)} laps (positive = surplus, negative = will run short)

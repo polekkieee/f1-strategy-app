@@ -26,6 +26,13 @@ function getPlayerCarIndex(packet) {
     return packet?.m_header?.m_playerCarIndex ?? 0;
 }
 
+function resolveTyreCompounds(entry) {
+    return {
+        actualCompound: F1_25_HELPERS.getTyreCompound(entry.m_actualTyreCompound, false),
+        visualCompound: F1_25_HELPERS.getTyreCompound(entry.m_visualTyreCompound, true),
+    };
+}
+
 function updateGridOrder(state, lapDataPacket, playerPosition) {
     if (!lapDataPacket || !Array.isArray(lapDataPacket.m_lapData)) {
         state.carAheadIndex = -1;
@@ -153,25 +160,36 @@ function handleCarStatus(state, carStatusData) {
     const carAhead = state.carAheadIndex ?? -1;
     const carBehind = state.carBehindIndex ?? -1;
 
-    if (carAhead !== -1 && carStatusData.m_carStatusData[carAhead]) {
-        state.carAheadTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carAhead].m_visualTyreCompound, true);
-        state.carAheadTireAgeLaps = carStatusData.m_carStatusData[carAhead].m_tyresAgeLaps;
+    const statusAhead = carAhead !== -1 ? carStatusData.m_carStatusData?.[carAhead] : null;
+    if (statusAhead) {
+        const { actualCompound, visualCompound } = resolveTyreCompounds(statusAhead);
+        state.carAheadActualTyreCompound = actualCompound;
+        state.carAheadVisualTyreCompound = visualCompound;
+        state.carAheadTireAgeLaps = statusAhead.m_tyresAgeLaps;
     } else {
-        state.carAheadTireCompound = "";
+        state.carAheadActualTyreCompound = "";
+        state.carAheadVisualTyreCompound = "";
         state.carAheadTireAgeLaps = 0;
     }
-    if (carBehind !== -1 && carStatusData.m_carStatusData[carBehind]) {
-        state.carBehindTireCompound = F1_25_HELPERS.getTyreCompound(carStatusData.m_carStatusData[carBehind].m_visualTyreCompound, true);
-        state.carBehindTireAgeLaps = carStatusData.m_carStatusData[carBehind].m_tyresAgeLaps;
+
+    const statusBehind = carBehind !== -1 ? carStatusData.m_carStatusData?.[carBehind] : null;
+    if (statusBehind) {
+        const { actualCompound, visualCompound } = resolveTyreCompounds(statusBehind);
+        state.carBehindActualTyreCompound = actualCompound;
+        state.carBehindVisualTyreCompound = visualCompound;
+        state.carBehindTireAgeLaps = statusBehind.m_tyresAgeLaps;
     } else {
-        state.carBehindTireCompound = "";
+        state.carBehindActualTyreCompound = "";
+        state.carBehindVisualTyreCompound = "";
         state.carBehindTireAgeLaps = 0;
     }
 
     const myStatus = carStatusData.m_carStatusData?.[playerCarIndex];
     if (!myStatus) return;
 
-    state.tireCompound = F1_25_HELPERS.getTyreCompound(myStatus.m_visualTyreCompound, true);
+    const { actualCompound, visualCompound } = resolveTyreCompounds(myStatus);
+    state.actualTyreCompound = actualCompound;
+    state.visualTyreCompound = visualCompound;
     state.tireAgeLaps = myStatus.m_tyresAgeLaps;
     state.ersStorage = myStatus.m_ersStoreEnergy;
     state.fuelRemainingLaps = myStatus.m_fuelRemainingLaps;
@@ -243,7 +261,7 @@ function handleTyreSets(state, tyreSetsData) {
         tyreSetsData.m_tyreSetData.forEach(set => {
             if (!set.m_fitted && set.m_available) {
                 state.availableTires.push({
-                    visualCompound: F1_25_HELPERS.getTyreCompound(set.m_visualTyreCompound, true),
+                    ...resolveTyreCompounds(set),
                     wear: set.m_wear,
                     lapsLeft: set.m_lifeSpan,
                     usableLife: set.m_usableLife,
