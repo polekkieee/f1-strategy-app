@@ -7,11 +7,6 @@ const { PACKET_IDS } = F1_25_CONSTANTS;
 
 let client = null;
 
-const packetInfo = {
-    format: 2025,                   // Header
-    playerCarIndex: 0,              // Header
-};
-
 function getPacketTimestamp(packet) {
     const sessionTime = packet?.m_header?.m_sessionTime;
     return typeof sessionTime === "number" ? Math.round(sessionTime * 1000) : 0;
@@ -36,9 +31,10 @@ function updateGridOrder(state, lapDataPacket, playerPosition) {
         .filter(c => c.position > 0)     // ignore invalids
         .sort((a, b) => a.position - b.position);
 
-    // Calculate target array indices based on current player position
-    const indexAhead = playerPosition - 2;
-    const indexBehind = playerPosition;
+    // Locate player in sorted active race order and resolve adjacent rivals
+    const playerGridIndex = cars.findIndex(c => c.position === playerPosition);
+    const indexAhead = playerGridIndex - 1;
+    const indexBehind = playerGridIndex !== -1 ? playerGridIndex + 1 : -1;
 
     // Strict bounds checking to prevent undefined array reads
     state.carAheadIndex = checkGridIndexBounds(indexAhead, cars);
@@ -95,7 +91,7 @@ function handleSession(state, sessionData) {
 function handleLapData(state, lapData) {
     state.timestamp = getPacketTimestamp(lapData);
     const playerCarIndex = getPlayerCarIndex(lapData);
-    const me = lapData.m_lapData[playerCarIndex];
+    const me = lapData.m_lapData?.[playerCarIndex];
     if (!me) return;
 
     state.playerPosition = me.m_carPosition;
@@ -154,7 +150,7 @@ function handleCarStatus(state, carStatusData) {
         state.carBehindTireAgeLaps = 0;
     }
 
-    const myStatus = carStatusData.m_carStatusData[playerCarIndex];
+    const myStatus = carStatusData.m_carStatusData?.[playerCarIndex];
     if (!myStatus) return;
 
     state.tireCompound = F1_25_HELPERS.getTyreCompound(myStatus.m_visualTyreCompound, true);
@@ -164,10 +160,11 @@ function handleCarStatus(state, carStatusData) {
 }
 
 function handleCarDamage(state, carDamageData) {
-    state.carDamage = [];
     const playerCarIndex = getPlayerCarIndex(carDamageData);
-    const damage = carDamageData.m_carDamageData[playerCarIndex];
+    const damage = carDamageData.m_carDamageData?.[playerCarIndex];
     if (!damage) return;
+
+    state.carDamage = [];
 
     if (damage.m_frontLeftWingDamage > 0) state.carDamage.push("Front Left Wing: " + damage.m_frontLeftWingDamage);
     if (damage.m_frontRightWingDamage > 0) state.carDamage.push("Front Right Wing: " + damage.m_frontRightWingDamage);
@@ -291,4 +288,4 @@ export function stop() {
     }
 }
 
-export default { packetInfo, processPacket };
+export default { processPacket, start, stop };
