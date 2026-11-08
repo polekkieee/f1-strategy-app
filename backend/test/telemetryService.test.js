@@ -5,6 +5,7 @@ import { processPacket } from "../telemetryService.js";
 import {
     createPacketHeader,
     createSessionPacket,
+    createWeatherForecastSample,
     createLapDataPacket,
     createCarStatusPacket,
     createCarDamagePacket,
@@ -486,6 +487,91 @@ describe("processPacket - Segregated Penalty Pipeline (#4)", () => {
         assert.deepEqual(raceStore.state.playerPenalties, []);
     });
 });
+
+describe("processPacket - Weather Forecast Sanitization & Padding Removal (#5)", () => {
+    beforeEach(() => {
+        raceStore.reset();
+    });
+
+    it("strips 0-offset and trailing padding slots from a 64-sample Session packet fixture, retains only matching session samples, and sorts by TimeOffsetMinutes", () => {
+        const activeSamples = [
+            // Present (0-offset) sample for current session - should be discarded
+            createWeatherForecastSample({ m_sessionType: 15, m_timeOffset: 0, m_weather: 0, m_rainPercentage: 0 }),
+            // Out-of-order future samples for current session (15 = Race)
+            createWeatherForecastSample({ m_sessionType: 15, m_timeOffset: 30, m_weather: 3, m_rainPercentage: 65 }),
+            createWeatherForecastSample({ m_sessionType: 15, m_timeOffset: 5, m_weather: 1, m_rainPercentage: 15 }),
+            // Sample from another session (e.g. Qualifying 1 = 5)
+            createWeatherForecastSample({ m_sessionType: 5, m_timeOffset: 10, m_weather: 2, m_rainPercentage: 25 }),
+            createWeatherForecastSample({ m_sessionType: 15, m_timeOffset: 15, m_weather: 2, m_rainPercentage: 40 }),
+        ];
+
+        // Trailing slots beyond m_numWeatherForecastSamples (createSessionPacket pads remaining slots to 64)
+        const trailingSlots = [
+            createWeatherForecastSample({ m_sessionType: 15, m_timeOffset: 0, m_weather: 0, m_rainPercentage: 0 }),
+            createWeatherForecastSample({ m_sessionType: 0, m_timeOffset: 45, m_weather: 0, m_rainPercentage: 0 }),
+        ];
+
+        const sessionPacket = createSessionPacket({
+            m_sessionType: 15, // Race
+            m_numWeatherForecastSamples: activeSamples.length,
+            m_weatherForecastSamples: [...activeSamples, ...trailingSlots],
+            m_forecastAccuracy: 1, // Approximate
+        });
+
+        processPacket(raceStore.state, sessionPacket);
+
+        assert.equal(sessionPacket.m_weatherForecastSamples.length, 64);
+        assert.equal(raceStore.state.forecastAccuracy, "Approximate");
+        assert.deepEqual(raceStore.state.weatherForecast, [
+            {
+                TimeOffsetMinutes: 5,
+                Weather: "Light Cloud",
+                RainPercentage: 15,
+            },
+            {
+                TimeOffsetMinutes: 15,
+                Weather: "Overcast",
+                RainPercentage: 40,
+            },
+            {
+                TimeOffsetMinutes: 30,
+                Weather: "Light Rain",
+                RainPercentage: 65,
+            },
+        ]);
+    });
+
+    it("strips zero-offset padding slots even when m_sessionType is 0 and records Perfect forecastAccuracy", () => {
+        const sessionPacket = createSessionPacket({
+            m_sessionType: 0, // Unknown (matches default 0 in raw zero-filled padding buffers)
+            m_numWeatherForecastSamples: 64,
+            m_weatherForecastSamples: [
+                createWeatherForecastSample({ m_sessionType: 0, m_timeOffset: 0, m_weather: 0, m_rainPercentage: 0 }),
+                createWeatherForecastSample({ m_sessionType: 0, m_timeOffset: 10, m_weather: 4, m_rainPercentage: 85 }),
+                createWeatherForecastSample({ m_sessionType: 0, m_timeOffset: 5, m_weather: 3, m_rainPercentage: 55 }),
+            ],
+            m_forecastAccuracy: 0, // Perfect
+        });
+
+        processPacket(raceStore.state, sessionPacket);
+
+        assert.equal(sessionPacket.m_weatherForecastSamples.length, 64);
+        assert.equal(raceStore.state.forecastAccuracy, "Perfect");
+        assert.deepEqual(raceStore.state.weatherForecast, [
+            {
+                TimeOffsetMinutes: 5,
+                Weather: "Light Rain",
+                RainPercentage: 55,
+            },
+            {
+                TimeOffsetMinutes: 10,
+                Weather: "Heavy Rain",
+                RainPercentage: 85,
+            },
+        ]);
+    });
+});
+
 
 
 

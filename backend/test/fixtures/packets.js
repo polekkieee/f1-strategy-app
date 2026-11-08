@@ -2,6 +2,7 @@ import { F1_25_CONSTANTS } from "../../udpAppendices.js";
 
 const { PACKET_IDS } = F1_25_CONSTANTS;
 const GRID_SIZE = 22;
+const WEATHER_FORECAST_SLOTS = 64;
 
 function buildCarArray(createCarItem, carOverrides = {}) {
     return Array.from({ length: GRID_SIZE }, (_, idx) =>
@@ -44,6 +45,19 @@ export function createWeatherForecastSample(overrides = {}) {
 export function createSessionPacket(overrides = {}) {
     const { m_header, m_weatherForecastSamples, ...rest } = overrides;
     const sessionType = rest.m_sessionType ?? 15;
+    const activeSamples = m_weatherForecastSamples ?? [
+        createWeatherForecastSample({ m_sessionType: sessionType, m_timeOffset: 5, m_weather: 1, m_rainPercentage: 10 }),
+    ];
+    const paddedSamples = Array.from({ length: WEATHER_FORECAST_SLOTS }, (_, idx) =>
+        activeSamples[idx] ?? createWeatherForecastSample({
+            m_sessionType: 0,
+            m_timeOffset: 0,
+            m_weather: 0,
+            m_trackTemperature: 0,
+            m_airTemperature: 0,
+            m_rainPercentage: 0,
+        })
+    );
     return {
         m_header: createPacketHeader({
             m_packetId: PACKET_IDS.SESSION,
@@ -68,10 +82,8 @@ export function createSessionPacket(overrides = {}) {
         m_marshalZones: [],
         m_safetyCarStatus: 0,
         m_networkGame: 0,
-        m_numWeatherForecastSamples: m_weatherForecastSamples ? m_weatherForecastSamples.length : 1,
-        m_weatherForecastSamples: m_weatherForecastSamples ?? [
-            createWeatherForecastSample({ m_sessionType: sessionType, m_timeOffset: 5, m_weather: 1, m_rainPercentage: 10 }),
-        ],
+        m_numWeatherForecastSamples: activeSamples.length,
+        m_weatherForecastSamples: paddedSamples,
         m_forecastAccuracy: 0,
         m_aiDifficulty: 95,
         m_pitStopWindowIdealLap: 18,

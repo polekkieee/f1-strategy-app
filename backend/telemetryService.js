@@ -88,11 +88,19 @@ function handleSession(state, sessionData) {
     state.pitStopWindowIdealLap = sessionData.m_pitStopWindowIdealLap;
     state.weather = F1_25_HELPERS.getWeatherDescription(sessionData.m_weather);
 
-    state.weatherForecast = sessionData.m_weatherForecastSamples?.filter(f => f.m_sessionType === sessionData.m_sessionType).map(forecast => ({
-        TimeOffsetMinutes: forecast.m_timeOffset,
-        Weather: F1_25_HELPERS.getWeatherDescription(forecast.m_weather),
-        RainPercentage: forecast.m_rainPercentage
-    })) || [];
+    const rawSamples = sessionData.m_weatherForecastSamples?.slice(
+        0,
+        sessionData.m_numWeatherForecastSamples
+    ) || [];
+
+    state.weatherForecast = rawSamples
+        .filter(f => f.m_sessionType === sessionData.m_sessionType && f.m_timeOffset > 0)
+        .map(forecast => ({
+            TimeOffsetMinutes: forecast.m_timeOffset,
+            Weather: F1_25_HELPERS.getWeatherDescription(forecast.m_weather),
+            RainPercentage: forecast.m_rainPercentage
+        }))
+        .sort((a, b) => a.TimeOffsetMinutes - b.TimeOffsetMinutes);
 
     state.forecastAccuracy = sessionData.m_forecastAccuracy === 0 ? "Perfect" : "Approximate";
     state.safetyCarStatus = F1_25_HELPERS.getSafetyCarStatus(sessionData.m_safetyCarStatus);
