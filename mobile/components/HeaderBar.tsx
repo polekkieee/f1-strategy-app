@@ -68,7 +68,7 @@ export function HeaderBarView({
         {trackName || "—"} · {sessionType || "—"}
       </Text>
       <View style={s.right}>
-        <Text style={s.mid}>
+        <Text style={[s.mid, s.lapCounter]}>
           LAP {currentLap}/{totalLaps || "–"}
         </Text>
         {isCompleted && (
@@ -148,12 +148,16 @@ const s = StyleSheet.create({
     fontWeight: "700",
     fontSize: 12,
     letterSpacing: 1,
+    fontVariant: ["tabular-nums"],
   },
   statusAlertText: {
     color: colors.bad,
     fontWeight: "800",
   },
   mid: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  lapCounter: {
+    fontVariant: ["tabular-nums"],
+  },
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
   summaryBtn: {
     paddingHorizontal: 8,

@@ -54,6 +54,7 @@ const s = StyleSheet.create({
   },
   cardSafetyCar: {
     borderColor: colors.warn,
+    borderWidth: 1.5,
   },
   title: {
     color: colors.muted,

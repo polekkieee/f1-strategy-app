@@ -5,7 +5,7 @@ import { isBoxThisLap } from "../utils/tacticalAlerts";
 import {
   evaluateHapticTransitions,
   triggerTacticalHaptic,
-  TacticalStateSnapshot,
+  type TacticalStateSnapshot,
 } from "../services/haptics";
 
 export function useTacticalHaptics() {

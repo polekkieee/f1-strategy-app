@@ -30,15 +30,14 @@ export function ActionablePenaltyBannerView({
   );
 }
 
-export function ActionablePenaltyBanner() {
+export function ActionablePenalties() {
   const penalties = useRaceStore((s) => s.playerPenalties);
   return <ActionablePenaltyBannerView penalties={penalties} />;
 }
 
-export {
-  ActionablePenaltyBanner as ActionablePenalties,
-  ActionablePenaltyBannerView as ActionablePenaltiesView,
-};
+export const ActionablePenaltyBanner = ActionablePenalties;
+
+export { ActionablePenaltyBannerView as ActionablePenaltiesView };
 
 const s = StyleSheet.create({
   container: {
@@ -68,5 +67,6 @@ const s = StyleSheet.create({
     fontWeight: "800",
     fontSize: 13,
     letterSpacing: 1.1,
+    fontVariant: ["tabular-nums"],
   },
 });

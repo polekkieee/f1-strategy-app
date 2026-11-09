@@ -45,6 +45,14 @@ const reactNativeMockUrl = "data:text/javascript," + encodeURIComponent(\`
   export const StyleSheet = {
     create: (styles) => styles,
   };
+  let currentDims = { width: 844, height: 390, scale: 3, fontScale: 1 };
+  export const __setMockDimensions = (d) => {
+    currentDims = { ...currentDims, ...d };
+  };
+  export const useWindowDimensions = () => currentDims;
+  export const Dimensions = {
+    get: () => currentDims,
+  };
 \`);
 
 const expoHapticsMockUrl = "data:text/javascript," + encodeURIComponent(\`
@@ -63,6 +71,33 @@ const expoHapticsMockUrl = "data:text/javascript," + encodeURIComponent(\`
   export const selectionAsync = async () => {};
 \`);
 
+const expoScreenOrientationMockUrl = "data:text/javascript," + encodeURIComponent(\`
+  export const OrientationLock = {
+    DEFAULT: 0,
+    ALL: 1,
+    PORTRAIT: 2,
+    PORTRAIT_UP: 3,
+    PORTRAIT_DOWN: 4,
+    LANDSCAPE: 5,
+    LANDSCAPE_LEFT: 6,
+    LANDSCAPE_RIGHT: 7,
+    OTHER: 8,
+    UNKNOWN: 9,
+  };
+  export const lockAsync = async () => {};
+  export const unlockAsync = async () => {};
+\`);
+
+const expoKeepAwakeMockUrl = "data:text/javascript," + encodeURIComponent(\`
+  export const useKeepAwake = () => {};
+  export const activateKeepAwakeAsync = async () => {};
+  export const deactivateKeepAwake = async () => {};
+\`);
+
+const expoStatusBarMockUrl = "data:text/javascript," + encodeURIComponent(\`
+  export const StatusBar = (props) => ({ type: 'StatusBar', props });
+\`);
+
 export async function resolve(specifier, context, nextResolve) {
   if (specifier === 'react-native') {
     return {
@@ -77,6 +112,30 @@ export async function resolve(specifier, context, nextResolve) {
       format: 'module',
       shortCircuit: true,
       url: expoHapticsMockUrl,
+    };
+  }
+
+  if (specifier === 'expo-screen-orientation') {
+    return {
+      format: 'module',
+      shortCircuit: true,
+      url: expoScreenOrientationMockUrl,
+    };
+  }
+
+  if (specifier === 'expo-keep-awake') {
+    return {
+      format: 'module',
+      shortCircuit: true,
+      url: expoKeepAwakeMockUrl,
+    };
+  }
+
+  if (specifier === 'expo-status-bar') {
+    return {
+      format: 'module',
+      shortCircuit: true,
+      url: expoStatusBarMockUrl,
     };
   }
 
