@@ -5,9 +5,11 @@ import { useKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useTelemetry } from "./hooks/useTelemetry";
 import { useTacticalHaptics } from "./hooks/useTacticalHaptics";
+import { useSessionLifecycle } from "./hooks/useSessionLifecycle";
 import { colors } from "./ui/theme";
 import { HeaderBar } from "./components/HeaderBar";
 import { SettingsSheet } from "./components/SettingsSheet";
+import { PostRaceSummarySheet } from "./components/PostRaceSummarySheet";
 import { TyreWidget } from "./components/TyreWidget";
 import { FuelGauge } from "./components/FuelGauge";
 import { GapsWidget } from "./components/GapsWidget";
@@ -21,6 +23,7 @@ import { SafetyCarAlert } from "./components/SafetyCarAlert";
 export default function App() {
   useTelemetry();
   useTacticalHaptics();
+  useSessionLifecycle();
   useKeepAwake();
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -47,6 +50,7 @@ export default function App() {
         </View>
       </View>
       <SettingsSheet />
+      <PostRaceSummarySheet />
       <StatusBar style="light" hidden />
     </View>
   );

@@ -36,6 +36,12 @@ try {
 const reactNativeMockUrl = "data:text/javascript," + encodeURIComponent(\`
   export const View = (props) => ({ type: 'View', props });
   export const Text = (props) => ({ type: 'Text', props });
+  export const Pressable = (props) => ({ type: 'Pressable', props });
+  export const Modal = (props) => ({ type: 'Modal', props });
+  export const ScrollView = (props) => ({ type: 'ScrollView', props });
+  export const Switch = (props) => ({ type: 'Switch', props });
+  export const TextInput = (props) => ({ type: 'TextInput', props });
+  export const ActivityIndicator = (props) => ({ type: 'ActivityIndicator', props });
   export const StyleSheet = {
     create: (styles) => styles,
   };

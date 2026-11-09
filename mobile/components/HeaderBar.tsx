@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useRaceStore } from "../store/useRaceStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { usePostRaceStore } from "../store/usePostRaceStore";
 import { colors } from "../ui/theme";
 
 const STALE_AFTER_S = 3;
@@ -18,21 +19,32 @@ function useStaleness() {
   return { age, stale: age === null || age >= STALE_AFTER_S };
 }
 
-export function HeaderBar() {
-  const { isConnected, trackName, sessionType, currentLap, totalLaps } =
-    useRaceStore(
-      useShallow((s) => ({
-        isConnected: s.isConnected,
-        trackName: s.trackName,
-        sessionType: s.sessionType,
-        currentLap: s.currentLap,
-        totalLaps: s.totalLaps,
-        trackStatus: s.safetyCarStatus,
-      }))
-    );
-  const openSettings = useSettingsStore((s) => s.openSettings);
-  const { age, stale } = useStaleness();
+export interface HeaderBarViewProps {
+  isConnected: boolean;
+  trackName: string;
+  sessionType: string;
+  currentLap: number;
+  totalLaps: number;
+  sessionStatus?: string;
+  age: number | null;
+  stale: boolean;
+  onOpenSettings: () => void;
+  onOpenSummary: () => void;
+}
 
+export function HeaderBarView({
+  isConnected,
+  trackName,
+  sessionType,
+  currentLap,
+  totalLaps,
+  sessionStatus,
+  age,
+  stale,
+  onOpenSettings,
+  onOpenSummary,
+}: HeaderBarViewProps) {
+  const isCompleted = sessionStatus?.toLowerCase() === "completed";
   const dot = !isConnected ? colors.bad : stale ? colors.warn : colors.good;
   const label = !isConnected
     ? "DISCONNECTED · TAP TO CONFIGURE"
@@ -46,7 +58,7 @@ export function HeaderBar() {
   return (
     <View style={s.bar}>
       <Pressable
-        onPress={openSettings}
+        onPress={onOpenSettings}
         style={[s.statusPill, isAlert && s.statusPillAlert]}
       >
         <View style={[s.dot, { backgroundColor: dot }]} />
@@ -59,11 +71,54 @@ export function HeaderBar() {
         <Text style={s.mid}>
           LAP {currentLap}/{totalLaps || "–"}
         </Text>
-        <Pressable onPress={openSettings} style={s.settingsBtn}>
+        {isCompleted && (
+          <Pressable onPress={onOpenSummary} style={s.summaryBtn}>
+            <Text style={s.summaryBtnText}>POST-RACE SUMMARY</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={onOpenSettings} style={s.settingsBtn}>
           <Text style={s.settingsBtnText}>SETTINGS</Text>
         </Pressable>
       </View>
     </View>
+  );
+}
+
+export function HeaderBar() {
+  const {
+    isConnected,
+    trackName,
+    sessionType,
+    currentLap,
+    totalLaps,
+    sessionStatus,
+  } = useRaceStore(
+    useShallow((s) => ({
+      isConnected: s.isConnected,
+      trackName: s.trackName,
+      sessionType: s.sessionType,
+      currentLap: s.currentLap,
+      totalLaps: s.totalLaps,
+      sessionStatus: s.sessionStatus,
+    }))
+  );
+  const openSettings = useSettingsStore((s) => s.openSettings);
+  const openSummary = usePostRaceStore((s) => s.openSummary);
+  const { age, stale } = useStaleness();
+
+  return (
+    <HeaderBarView
+      isConnected={isConnected}
+      trackName={trackName}
+      sessionType={sessionType}
+      currentLap={currentLap}
+      totalLaps={totalLaps}
+      sessionStatus={sessionStatus}
+      age={age}
+      stale={stale}
+      onOpenSettings={openSettings}
+      onOpenSummary={openSummary}
+    />
   );
 }
 
@@ -100,6 +155,20 @@ const s = StyleSheet.create({
   },
   mid: { color: colors.text, fontSize: 13, fontWeight: "600" },
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
+  summaryBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
+  summaryBtnText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
   settingsBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
