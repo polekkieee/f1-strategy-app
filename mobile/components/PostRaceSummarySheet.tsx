@@ -1,11 +1,5 @@
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { LandscapeModal, LANDSCAPE_MODAL_ORIENTATIONS } from "./LandscapeModal";
 import { useShallow } from "zustand/react/shallow";
 import { useRaceStore } from "../store/useRaceStore";
 import { usePostRaceStore } from "../store/usePostRaceStore";
@@ -65,11 +59,10 @@ export function PostRaceSummaryView({
   const penaltyDisplay = `${totalPenaltySeconds}s`;
 
   return (
-    <Modal
+    <LandscapeModal
       visible={isOpen}
       animationType="slide"
-      transparent
-      supportedOrientations={["landscape", "landscape-left", "landscape-right"]}
+      supportedOrientations={LANDSCAPE_MODAL_ORIENTATIONS}
       onRequestClose={onClose}
     >
       <View style={s.backdrop}>
@@ -153,7 +146,7 @@ export function PostRaceSummaryView({
           </View>
         </View>
       </View>
-    </Modal>
+    </LandscapeModal>
   );
 }
 
