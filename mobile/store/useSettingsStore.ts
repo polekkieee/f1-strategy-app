@@ -1,8 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 
-export const DEFAULT_BACKEND_HOST = "localhost:5000";
+export const DEFAULT_BACKEND_HOST = process.env.DEV_HOST_IP || "localhost:5000";
 export const BACKEND_HOST_STORAGE_KEY = "f1_settings_backend_host";
+export const SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY =
+  "f1_settings_show_actual_tyre_compound";
 
 export interface SettingsStorage {
   getItem: (key: string) => Promise<string | null>;
@@ -33,12 +35,14 @@ export function normalizeBackendHost(raw: string | null | undefined): string {
 
 export interface SettingsStore {
   backendHost: string;
+  showActualTyreCompound: boolean;
   isHydrated: boolean;
   isSettingsOpen: boolean;
   hasAutoPromptedConnection: boolean;
   connectionEpoch: number;
   loadSettings: () => Promise<string>;
   setBackendHost: (host: string) => Promise<string>;
+  setShowActualTyreCompound: (show: boolean) => Promise<boolean>;
   openSettings: () => void;
   closeSettings: () => void;
   notifyConnectionFailed: () => void;
@@ -46,6 +50,7 @@ export interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   backendHost: DEFAULT_BACKEND_HOST,
+  showActualTyreCompound: false,
   isHydrated: false,
   isSettingsOpen: false,
   hasAutoPromptedConnection: false,
@@ -53,12 +58,24 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const saved = await activeStorage.getItem(BACKEND_HOST_STORAGE_KEY);
-      const normalized = normalizeBackendHost(saved);
-      set({ backendHost: normalized, isHydrated: true });
-      return normalized;
+      const savedHost = await activeStorage.getItem(BACKEND_HOST_STORAGE_KEY);
+      const normalizedHost = normalizeBackendHost(savedHost);
+      const savedActual = await activeStorage.getItem(
+        SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY
+      );
+      const showActualTyreCompound = savedActual === "true";
+      set({
+        backendHost: normalizedHost,
+        showActualTyreCompound,
+        isHydrated: true,
+      });
+      return normalizedHost;
     } catch {
-      set({ backendHost: DEFAULT_BACKEND_HOST, isHydrated: true });
+      set({
+        backendHost: DEFAULT_BACKEND_HOST,
+        showActualTyreCompound: false,
+        isHydrated: true,
+      });
       return DEFAULT_BACKEND_HOST;
     }
   },
@@ -75,6 +92,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       // Ignore storage write errors while keeping in-memory host updated
     }
     return normalized;
+  },
+
+  setShowActualTyreCompound: async (show: boolean) => {
+    set({ showActualTyreCompound: show });
+    try {
+      await activeStorage.setItem(
+        SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY,
+        String(show)
+      );
+    } catch {
+      // Ignore storage write errors while keeping in-memory state updated
+    }
+    return show;
   },
 
   openSettings: () => set({ isSettingsOpen: true }),

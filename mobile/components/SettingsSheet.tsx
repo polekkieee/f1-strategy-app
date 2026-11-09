@@ -4,6 +4,7 @@ import {
   Modal,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -20,15 +21,23 @@ type TestStatus =
   | { kind: "error"; error: string };
 
 export function SettingsSheet() {
-  const { backendHost, isSettingsOpen, setBackendHost, closeSettings } =
-    useSettingsStore(
-      useShallow((s) => ({
-        backendHost: s.backendHost,
-        isSettingsOpen: s.isSettingsOpen,
-        setBackendHost: s.setBackendHost,
-        closeSettings: s.closeSettings,
-      }))
-    );
+  const {
+    backendHost,
+    showActualTyreCompound,
+    isSettingsOpen,
+    setBackendHost,
+    setShowActualTyreCompound,
+    closeSettings,
+  } = useSettingsStore(
+    useShallow((s) => ({
+      backendHost: s.backendHost,
+      showActualTyreCompound: s.showActualTyreCompound,
+      isSettingsOpen: s.isSettingsOpen,
+      setBackendHost: s.setBackendHost,
+      setShowActualTyreCompound: s.setShowActualTyreCompound,
+      closeSettings: s.closeSettings,
+    }))
+  );
 
   const [draftHost, setDraftHost] = useState(backendHost);
   const [testState, setTestState] = useState<TestStatus>({ kind: "idle" });
@@ -71,7 +80,7 @@ export function SettingsSheet() {
         <Pressable style={s.dismissArea} onPress={closeSettings} />
         <View style={s.sheet}>
           <View style={s.header}>
-            <Text style={s.title}>CONNECTION SETTINGS</Text>
+            <Text style={s.title}>SETTINGS</Text>
             <Pressable onPress={closeSettings} style={s.closeBtn}>
               <Text style={s.closeText}>CLOSE</Text>
             </Pressable>
@@ -105,6 +114,29 @@ export function SettingsSheet() {
               Connection failed: {testState.error}
             </Text>
           )}
+
+          <View style={s.divider} />
+
+          <View style={s.toggleRow}>
+            <View style={s.toggleInfo}>
+              <Text style={s.toggleLabel}>
+                Show Actual Tyre Compound (C1–C5)
+              </Text>
+              <Text style={s.toggleHint}>
+                Display underlying Pirelli grade alongside tyre age in Tyre
+                widget
+              </Text>
+            </View>
+            <Switch
+              value={showActualTyreCompound}
+              onValueChange={(val) => {
+                void setShowActualTyreCompound(val);
+              }}
+              trackColor={{ false: colors.border, true: colors.accent }}
+              thumbColor={colors.text}
+              accessibilityLabel="Show Actual Tyre Compound (C1–C5)"
+            />
+          </View>
 
           <View style={s.actions}>
             <Pressable
@@ -204,6 +236,32 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     marginTop: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 14,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  toggleInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  toggleLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  toggleHint: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 2,
   },
   actions: {
     flexDirection: "row",

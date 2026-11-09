@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   BACKEND_HOST_STORAGE_KEY,
+  SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY,
   configureSettingsStorage,
   DEFAULT_BACKEND_HOST,
   useSettingsStore,
@@ -24,8 +25,10 @@ describe("SettingsStore & Host Configuration", () => {
   beforeEach(async () => {
     configureSettingsStorage();
     await storage.removeItem(BACKEND_HOST_STORAGE_KEY);
+    await storage.removeItem(SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY);
     useSettingsStore.setState({
       backendHost: DEFAULT_BACKEND_HOST,
+      showActualTyreCompound: false,
       isHydrated: false,
       isSettingsOpen: false,
       hasAutoPromptedConnection: false,
@@ -136,6 +139,40 @@ describe("SettingsStore & Host Configuration", () => {
     if (!failResult.ok) {
       assert.match(failResult.error, /Network request failed/);
     }
+  });
+
+  it("defaults showActualTyreCompound to false and persists updates to AsyncStorage", async () => {
+    assert.equal(useSettingsStore.getState().showActualTyreCompound, false);
+    assert.equal(
+      SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY,
+      "f1_settings_show_actual_tyre_compound"
+    );
+
+    const saved = await useSettingsStore
+      .getState()
+      .setShowActualTyreCompound(true);
+    assert.equal(saved, true);
+    assert.equal(useSettingsStore.getState().showActualTyreCompound, true);
+    assert.equal(
+      await storage.getItem(SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY),
+      "true"
+    );
+
+    // Verify loadSettings hydrates showActualTyreCompound
+    useSettingsStore.setState({
+      showActualTyreCompound: false,
+      isHydrated: false,
+    });
+    await useSettingsStore.getState().loadSettings();
+    assert.equal(useSettingsStore.getState().showActualTyreCompound, true);
+
+    // Verify toggling off persists false
+    await useSettingsStore.getState().setShowActualTyreCompound(false);
+    assert.equal(useSettingsStore.getState().showActualTyreCompound, false);
+    assert.equal(
+      await storage.getItem(SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY),
+      "false"
+    );
   });
 
   it("routes strategy API requests to the dynamically configured backendHost", async () => {
