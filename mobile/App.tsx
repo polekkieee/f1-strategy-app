@@ -8,6 +8,7 @@ import { colors } from "./ui/theme";
 import { HeaderBar } from "./components/HeaderBar";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { TyreWidget } from "./components/TyreWidget";
+import { FuelGauge } from "./components/FuelGauge";
 import { GapsWidget } from "./components/GapsWidget";
 import { PaceWidget } from "./components/PaceWidget";
 import { StatusWidget } from "./components/StatusWidget";
@@ -29,6 +30,7 @@ export default function App() {
         </View>
         <View style={s.col}>
           <TyreWidget />
+          <FuelGauge />
           <StrategyCard />
         </View>
         <View style={s.col}>
