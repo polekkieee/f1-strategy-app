@@ -1,6 +1,6 @@
 import { F1TelemetryClient, constants } from "@deltazeroproduction/f1-udp-parser";
 import { F1_25_CONSTANTS, F1_25_HELPERS } from "./udpAppendices.js";
-import { raceStore, createInitialState } from "./raceStateStore.js";
+import { raceStore, resetState } from "./raceStateStore.js";
 
 const { PACKETS } = constants;
 const { PACKET_IDS } = F1_25_CONSTANTS;
@@ -218,17 +218,16 @@ function handleCarDamage(state, carDamageData) {
 }
 
 function handleEvent(state, eventData) {
-    if (eventData.m_eventStringCode === "SEND") {
-        for (const k of Object.keys(state)) delete state[k];
-        Object.assign(state, createInitialState());
-        return;
-    }
-
     state.timestamp = getPacketTimestamp(eventData);
     const playerCarIndex = getPlayerCarIndex(eventData);
 
     switch (eventData.m_eventStringCode) {
         case "SSTA": // Session Started
+            resetState(state);
+            state.sessionStatus = "active";
+            break;
+        case "SEND": // Session Ended
+            state.sessionStatus = "completed";
             break;
         case "PENA": // Penalty
             if (eventData.m_eventDetails?.vehicleIdx === playerCarIndex) {

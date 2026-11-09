@@ -2,6 +2,7 @@
 export function createInitialState() {
     return {
         timestamp: 0,
+        sessionStatus: "active",
         trackName: "",
         sessionType: "",
         totalLaps: 0,
@@ -45,11 +46,15 @@ export function createInitialState() {
     };
 }
 
+export function resetState(state) {
+    for (const k of Object.keys(state)) delete state[k];
+    return Object.assign(state, createInitialState());
+}
+
 class RaceStateStore {
     static #instance;
     #state;
     #listeners;
-    #initialState
 
     constructor() {
         if (RaceStateStore.#instance) {
@@ -57,11 +62,7 @@ class RaceStateStore {
         }
 
         this.#listeners = new Set();
-        
-        // Define the initial shape of your telemetry data
-        this.#initialState = createInitialState();
-
-        this.#state = structuredClone(this.#initialState);
+        this.#state = createInitialState();
 
         RaceStateStore.#instance = this;
     }
@@ -72,8 +73,7 @@ class RaceStateStore {
     }
 
     reset() {
-        for (const k of Object.keys(this.#state)) delete this.#state[k];
-        Object.assign(this.#state, structuredClone(this.#initialState));
+        resetState(this.#state);
         this.#notify();
     }
 

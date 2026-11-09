@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { raceStore } from "../raceStateStore.js";
+import { raceStore, createInitialState } from "../raceStateStore.js";
 import { processPacket } from "../telemetryService.js";
 import {
     createPacketHeader,
@@ -657,7 +657,103 @@ describe("processPacket - Dual Tyre Compound (Actual C1-C5 & Visual) Tracking (#
     });
 });
 
+describe("processPacket - Session Lifecycle State Retention (Post-Race Freeze & Reset) (#7)", () => {
+    beforeEach(() => {
+        raceStore.reset();
+    });
 
+    it("transitions sessionStatus to 'completed' upon receiving SEND while preserving finishing metrics for post-race review", () => {
+        const finalLapPacket = createLapDataPacket({
+            carOverrides: {
+                0: {
+                    m_carPosition: 2,
+                    m_currentLapNum: 57,
+                    m_lastLapTimeInMS: 90125,
+                    m_deltaToCarInFrontMinutesPart: 0,
+                    m_deltaToCarInFrontMSPart: 2350,
+                    m_pitStatus: 0,
+                    m_numPitStops: 2,
+                    m_penalties: 5,
+                },
+                1: {
+                    m_carPosition: 1,
+                    m_currentLapNum: 57,
+                    m_lastLapTimeInMS: 89900,
+                },
+                2: {
+                    m_carPosition: 3,
+                    m_currentLapNum: 57,
+                    m_lastLapTimeInMS: 90800,
+                    m_deltaToCarInFrontMinutesPart: 0,
+                    m_deltaToCarInFrontMSPart: 1420,
+                },
+            },
+        });
 
+        const sendEvent = createEventPacket({
+            m_header: { m_sessionTime: 5120.4 },
+            m_eventStringCode: "SEND",
+        });
 
+        processPacket(raceStore.state, sessionPacketFixture);
+        processPacket(raceStore.state, finalLapPacket);
+        processPacket(raceStore.state, carStatusPacketFixture);
+        processPacket(raceStore.state, carDamagePacketFixture);
+        processPacket(raceStore.state, eventPacketFixture);
+        processPacket(raceStore.state, tyreSetsPacketFixture);
+
+        processPacket(raceStore.state, sendEvent);
+
+        assert.equal(raceStore.state.sessionStatus, "completed");
+        assert.equal(raceStore.state.timestamp, 5120400);
+        assert.equal(raceStore.state.trackName, "Sakhir (Bahrain)");
+        assert.equal(raceStore.state.sessionType, "Race");
+        assert.equal(raceStore.state.currentLap, 57);
+        assert.equal(raceStore.state.playerPosition, 2);
+        assert.equal(raceStore.state.lastLapTime, 90.125);
+        assert.equal(raceStore.state.bestLapTime, 90.125);
+        assert.deepEqual(raceStore.state.lapTimeHistory, [90.125]);
+        assert.equal(raceStore.state.totalPenaltySeconds, 5);
+        assert.deepEqual(raceStore.state.playerPenalties, ["Drive through"]);
+        assert.equal(raceStore.state.gapAhead, 2.35);
+        assert.equal(raceStore.state.carAheadLastLapTime, 89.9);
+        assert.equal(raceStore.state.gapBehind, 1.42);
+        assert.equal(raceStore.state.carBehindLastLapTime, 90.8);
+        assert.equal(raceStore.state.actualTyreCompound, "C5");
+        assert.equal(raceStore.state.visualTyreCompound, "Soft");
+        assert.equal(raceStore.state.tireAgeLaps, 4);
+        assert.equal(raceStore.state.tireWearLR, 12);
+        assert.equal(raceStore.state.tireWearRR, 14);
+        assert.equal(raceStore.state.tireWearLF, 18);
+        assert.equal(raceStore.state.tireWearRF, 19);
+        assert.deepEqual(raceStore.state.carDamage, ["Front Left Wing: 15"]);
+        assert.equal(raceStore.state.availableTires.length, 1);
+    });
+
+    it("resets the store to initial state and sets sessionStatus to 'active' upon receiving SSTA", () => {
+        const sendEvent = createEventPacket({
+            m_header: { m_sessionTime: 5120.4 },
+            m_eventStringCode: "SEND",
+        });
+        const sstaEvent = createEventPacket({
+            m_eventStringCode: "SSTA",
+        });
+
+        processPacket(raceStore.state, sessionPacketFixture);
+        processPacket(raceStore.state, lapDataPacketFixture);
+        processPacket(raceStore.state, carStatusPacketFixture);
+        processPacket(raceStore.state, carDamagePacketFixture);
+        processPacket(raceStore.state, eventPacketFixture);
+        processPacket(raceStore.state, tyreSetsPacketFixture);
+        processPacket(raceStore.state, sendEvent);
+
+        assert.equal(raceStore.state.sessionStatus, "completed");
+        assert.equal(raceStore.state.currentLap, 3);
+
+        processPacket(raceStore.state, sstaEvent);
+
+        assert.equal(raceStore.state.sessionStatus, "active");
+        assert.deepEqual(raceStore.state, createInitialState());
+    });
+});
 
