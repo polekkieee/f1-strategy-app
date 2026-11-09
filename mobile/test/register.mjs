@@ -41,12 +41,36 @@ const reactNativeMockUrl = "data:text/javascript," + encodeURIComponent(\`
   };
 \`);
 
+const expoHapticsMockUrl = "data:text/javascript," + encodeURIComponent(\`
+  export const NotificationFeedbackType = {
+    Success: 'success',
+    Warning: 'warning',
+    Error: 'error',
+  };
+  export const ImpactFeedbackStyle = {
+    Light: 'light',
+    Medium: 'medium',
+    Heavy: 'heavy',
+  };
+  export const notificationAsync = async () => {};
+  export const impactAsync = async () => {};
+  export const selectionAsync = async () => {};
+\`);
+
 export async function resolve(specifier, context, nextResolve) {
   if (specifier === 'react-native') {
     return {
       format: 'module',
       shortCircuit: true,
       url: reactNativeMockUrl,
+    };
+  }
+
+  if (specifier === 'expo-haptics') {
+    return {
+      format: 'module',
+      shortCircuit: true,
+      url: expoHapticsMockUrl,
     };
   }
 

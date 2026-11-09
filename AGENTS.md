@@ -1,5 +1,19 @@
 # Agent Guidelines
 
+## Navigation
+
+### Architecture decisions
+
+Architecture decisions live in `docs/adr/`. Note ADR-0001: active client development is focused on Expo `mobile/`; `frontend/` is frozen.
+
+### Telemetry packet specifications
+
+Packet specifications for F1 24/25 UDP datagram layouts and structures live in `other/F1 25 Telemetry Output Structures.txt`.
+
+### Coding standards
+
+Standards axis review rules live in `CODING_STANDARDS.md`.
+
 ## Agent skills
 
 ### Issue tracker

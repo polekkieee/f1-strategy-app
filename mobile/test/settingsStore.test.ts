@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   BACKEND_HOST_STORAGE_KEY,
   SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY,
+  ENABLE_HAPTIC_ALERTS_STORAGE_KEY,
   configureSettingsStorage,
   DEFAULT_BACKEND_HOST,
   useSettingsStore,
@@ -26,9 +27,11 @@ describe("SettingsStore & Host Configuration", () => {
     configureSettingsStorage();
     await storage.removeItem(BACKEND_HOST_STORAGE_KEY);
     await storage.removeItem(SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY);
+    await storage.removeItem(ENABLE_HAPTIC_ALERTS_STORAGE_KEY);
     useSettingsStore.setState({
       backendHost: DEFAULT_BACKEND_HOST,
       showActualTyreCompound: false,
+      enableHapticAlerts: true,
       isHydrated: false,
       isSettingsOpen: false,
       hasAutoPromptedConnection: false,
@@ -172,6 +175,36 @@ describe("SettingsStore & Host Configuration", () => {
     assert.equal(
       await storage.getItem(SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY),
       "false"
+    );
+  });
+
+  it("defaults enableHapticAlerts to true and persists updates to AsyncStorage", async () => {
+    assert.equal(useSettingsStore.getState().enableHapticAlerts, true);
+
+    const saved = await useSettingsStore
+      .getState()
+      .setEnableHapticAlerts(false);
+    assert.equal(saved, false);
+    assert.equal(useSettingsStore.getState().enableHapticAlerts, false);
+    assert.equal(
+      await storage.getItem(ENABLE_HAPTIC_ALERTS_STORAGE_KEY),
+      "false"
+    );
+
+    // Verify loadSettings hydrates enableHapticAlerts
+    useSettingsStore.setState({
+      enableHapticAlerts: true,
+      isHydrated: false,
+    });
+    await useSettingsStore.getState().loadSettings();
+    assert.equal(useSettingsStore.getState().enableHapticAlerts, false);
+
+    // Verify toggling back on persists true
+    await useSettingsStore.getState().setEnableHapticAlerts(true);
+    assert.equal(useSettingsStore.getState().enableHapticAlerts, true);
+    assert.equal(
+      await storage.getItem(ENABLE_HAPTIC_ALERTS_STORAGE_KEY),
+      "true"
     );
   });
 

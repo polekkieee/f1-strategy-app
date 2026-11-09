@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useTelemetry } from "./hooks/useTelemetry";
+import { useTacticalHaptics } from "./hooks/useTacticalHaptics";
 import { colors } from "./ui/theme";
 import { HeaderBar } from "./components/HeaderBar";
 import { SettingsSheet } from "./components/SettingsSheet";
@@ -13,9 +14,13 @@ import { GapsWidget } from "./components/GapsWidget";
 import { PaceWidget } from "./components/PaceWidget";
 import { StatusWidget } from "./components/StatusWidget";
 import { StrategyCard } from "./components/StrategyCard";
+import { PittingBanner } from "./components/PittingBanner";
+import { ActionablePenaltyBanner } from "./components/ActionablePenaltyBanner";
+import { SafetyCarAlert } from "./components/SafetyCarAlert";
 
 export default function App() {
   useTelemetry();
+  useTacticalHaptics();
   useKeepAwake();
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -27,13 +32,16 @@ export default function App() {
       <View style={s.cols}>
         <View style={s.col}>
           <PaceWidget />
-        </View>
-        <View style={s.col}>
-          <TyreWidget />
           <FuelGauge />
-          <StrategyCard />
         </View>
         <View style={s.col}>
+          <ActionablePenaltyBanner />
+          <PittingBanner />
+          <TyreWidget />
+        </View>
+        <View style={s.col}>
+          <SafetyCarAlert />
+          <StrategyCard />
           <GapsWidget />
           <StatusWidget />
         </View>
@@ -43,6 +51,7 @@ export default function App() {
     </View>
   );
 }
+
 const s = StyleSheet.create({
   root: {
     flex: 1,

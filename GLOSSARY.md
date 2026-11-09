@@ -43,3 +43,7 @@ _Avoid_: Tire color, tire string
 **Session Status**:
 The lifecycle state of the track session (`active`, `completed`), dictating whether the Race State is currently receiving updates or frozen for post-race analysis.  
 _Avoid_: Game status, race phase
+
+**Tactical Alert**:
+A high-priority visual banner and haptic notification delivered to the driver during critical race events (BOX THIS LAP, Safety Car, unserved actionable penalties).  
+_Avoid_: Notification, toast, popup

@@ -3,7 +3,7 @@
     "concurrently": "^9.1.2"
   },
   "scripts": {
-    "start": "concurrently \"npm run start --prefix frontend\" \"npm run start --prefix backend\"",
+    "start": "concurrently \"npm run start --prefix mobile\" \"npm run start --prefix backend\"",
     "test": "npm test --prefix backend && npm test --prefix mobile",
     "typecheck": "npm run typecheck --prefix mobile",
     "check": "npm run test && npm run typecheck",

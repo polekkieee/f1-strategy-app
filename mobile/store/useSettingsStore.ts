@@ -5,6 +5,8 @@ export const DEFAULT_BACKEND_HOST = process.env.DEV_HOST_IP || "localhost:5000";
 export const BACKEND_HOST_STORAGE_KEY = "f1_settings_backend_host";
 export const SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY =
   "f1_settings_show_actual_tyre_compound";
+export const ENABLE_HAPTIC_ALERTS_STORAGE_KEY =
+  "f1_settings_enable_haptic_alerts";
 
 export interface SettingsStorage {
   getItem: (key: string) => Promise<string | null>;
@@ -36,6 +38,7 @@ export function normalizeBackendHost(raw: string | null | undefined): string {
 export interface SettingsStore {
   backendHost: string;
   showActualTyreCompound: boolean;
+  enableHapticAlerts: boolean;
   isHydrated: boolean;
   isSettingsOpen: boolean;
   hasAutoPromptedConnection: boolean;
@@ -43,6 +46,7 @@ export interface SettingsStore {
   loadSettings: () => Promise<string>;
   setBackendHost: (host: string) => Promise<string>;
   setShowActualTyreCompound: (show: boolean) => Promise<boolean>;
+  setEnableHapticAlerts: (enabled: boolean) => Promise<boolean>;
   openSettings: () => void;
   closeSettings: () => void;
   notifyConnectionFailed: () => void;
@@ -51,6 +55,7 @@ export interface SettingsStore {
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   backendHost: DEFAULT_BACKEND_HOST,
   showActualTyreCompound: false,
+  enableHapticAlerts: true,
   isHydrated: false,
   isSettingsOpen: false,
   hasAutoPromptedConnection: false,
@@ -64,9 +69,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY
       );
       const showActualTyreCompound = savedActual === "true";
+      const savedHaptics = await activeStorage.getItem(
+        ENABLE_HAPTIC_ALERTS_STORAGE_KEY
+      );
+      const enableHapticAlerts =
+        savedHaptics === null ? true : savedHaptics === "true";
       set({
         backendHost: normalizedHost,
         showActualTyreCompound,
+        enableHapticAlerts,
         isHydrated: true,
       });
       return normalizedHost;
@@ -74,6 +85,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       set({
         backendHost: DEFAULT_BACKEND_HOST,
         showActualTyreCompound: false,
+        enableHapticAlerts: true,
         isHydrated: true,
       });
       return DEFAULT_BACKEND_HOST;
@@ -105,6 +117,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       // Ignore storage write errors while keeping in-memory state updated
     }
     return show;
+  },
+
+  setEnableHapticAlerts: async (enabled: boolean) => {
+    set({ enableHapticAlerts: enabled });
+    try {
+      await activeStorage.setItem(
+        ENABLE_HAPTIC_ALERTS_STORAGE_KEY,
+        String(enabled)
+      );
+    } catch {
+      // Ignore storage write errors while keeping in-memory state updated
+    }
+    return enabled;
   },
 
   openSettings: () => set({ isSettingsOpen: true }),

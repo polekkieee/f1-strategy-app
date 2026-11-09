@@ -24,17 +24,21 @@ export function SettingsSheet() {
   const {
     backendHost,
     showActualTyreCompound,
+    enableHapticAlerts,
     isSettingsOpen,
     setBackendHost,
     setShowActualTyreCompound,
+    setEnableHapticAlerts,
     closeSettings,
   } = useSettingsStore(
     useShallow((s) => ({
       backendHost: s.backendHost,
       showActualTyreCompound: s.showActualTyreCompound,
+      enableHapticAlerts: s.enableHapticAlerts,
       isSettingsOpen: s.isSettingsOpen,
       setBackendHost: s.setBackendHost,
       setShowActualTyreCompound: s.setShowActualTyreCompound,
+      setEnableHapticAlerts: s.setEnableHapticAlerts,
       closeSettings: s.closeSettings,
     }))
   );
@@ -135,6 +139,24 @@ export function SettingsSheet() {
               trackColor={{ false: colors.border, true: colors.accent }}
               thumbColor={colors.text}
               accessibilityLabel="Show Actual Tyre Compound (C1–C5)"
+            />
+          </View>
+
+          <View style={s.toggleRow}>
+            <View style={s.toggleInfo}>
+              <Text style={s.toggleLabel}>Enable Haptic Alerts</Text>
+              <Text style={s.toggleHint}>
+                Trigger vibration pulses on rig mount for critical race events
+              </Text>
+            </View>
+            <Switch
+              value={enableHapticAlerts}
+              onValueChange={(val) => {
+                void setEnableHapticAlerts(val);
+              }}
+              trackColor={{ false: colors.border, true: colors.accent }}
+              thumbColor={colors.text}
+              accessibilityLabel="Enable Haptic Alerts"
             />
           </View>
 
