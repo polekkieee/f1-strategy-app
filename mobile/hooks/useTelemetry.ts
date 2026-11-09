@@ -1,57 +1,84 @@
-// hooks/useTelemetry.ts
-import { useEffect, useRef } from 'react';
-import { useRaceStore } from '../store/useRaceStore';
-
-// REPLACE WITH YOUR ACTUAL LOCAL NETWORK IP
-const BACKEND_WS_URL = 'ws://192.168.178.160:5000';
+import { useEffect, useRef } from "react";
+import { getWsUrl } from "../config";
+import { useRaceStore } from "../store/useRaceStore";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export function useTelemetry() {
-    const updateTelemetry = useRaceStore((state) => state.updateTelemetry);
-    const setConnectionStatus = useRaceStore((state) => state.setConnectionStatus);
-    const wsRef = useRef<WebSocket | null>(null);
+  const updateTelemetry = useRaceStore((state) => state.updateTelemetry);
+  const setConnectionStatus = useRaceStore(
+    (state) => state.setConnectionStatus
+  );
+  const backendHost = useSettingsStore((state) => state.backendHost);
+  const connectionEpoch = useSettingsStore((state) => state.connectionEpoch);
+  const isHydrated = useSettingsStore((state) => state.isHydrated);
+  const loadSettings = useSettingsStore((state) => state.loadSettings);
+  const notifyConnectionFailed = useSettingsStore(
+    (state) => state.notifyConnectionFailed
+  );
+  const wsRef = useRef<WebSocket | null>(null);
 
-    useEffect(() => {
-        let stopped = false;
-        let reconnectTimeout: ReturnType<typeof setTimeout>;
+  useEffect(() => {
+    if (!isHydrated) {
+      void loadSettings();
+    }
+  }, [isHydrated, loadSettings]);
 
-        const connect = () => {
-            const ws = new WebSocket(BACKEND_WS_URL);
-            wsRef.current = ws;
+  useEffect(() => {
+    if (!isHydrated) return;
 
-            ws.onopen = () => {
-                console.log('WebSocket Connected');
-                setConnectionStatus(true);
-            };
+    let stopped = false;
+    let connectedOnce = false;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+    const wsUrl = getWsUrl(backendHost);
 
-            ws.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    if (message.type === 'telemetryUpdate') {
-                        updateTelemetry(message.payload);
-                    }
-                } catch (error) {
-                    console.error('Failed to parse telemetry', error);
-                }
-            };
+    const connect = () => {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-            ws.onclose = () => {
-                setConnectionStatus(false);
-                if (!stopped) reconnectTimeout = setTimeout(connect, 3000);
-            };
-            ws.onerror = () => ws.close();
+      ws.onopen = () => {
+        connectedOnce = true;
+        setConnectionStatus(true);
+      };
 
-            ws.onerror = (error) => {
-                console.error('WebSocket Error:', error);
-                ws.close();
-            };
-        };
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "telemetryUpdate") {
+            updateTelemetry(message.payload);
+          }
+        } catch (error) {
+          console.error("Failed to parse telemetry", error);
+        }
+      };
 
-        connect();
+      ws.onclose = () => {
+        setConnectionStatus(false);
+        if (!stopped) {
+          if (!connectedOnce) {
+            notifyConnectionFailed();
+          }
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
 
-        return () => {
-            stopped = true;
-            clearTimeout(reconnectTimeout);
-            wsRef.current?.close();
-        };
-    }, [updateTelemetry, setConnectionStatus]);
+      ws.onerror = () => {
+        ws.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      clearTimeout(reconnectTimeout);
+      wsRef.current?.close();
+    };
+  }, [
+    backendHost,
+    connectionEpoch,
+    isHydrated,
+    notifyConnectionFailed,
+    setConnectionStatus,
+    updateTelemetry,
+  ]);
 }
