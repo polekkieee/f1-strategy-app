@@ -3,6 +3,15 @@
     "concurrently": "^9.1.2"
   },
   "scripts": {
-    "start": "concurrently \"npm run start --prefix frontend\" \"npm run start --prefix backend\""
+    "start": "concurrently \"npm run start --prefix frontend\" \"npm run start --prefix backend\"",
+    "test": "npm test --prefix backend",
+    "typecheck": "npm run typecheck --prefix mobile",
+    "check": "npm run test && npm run typecheck",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.9.10"
   }
 }
