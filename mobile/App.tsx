@@ -41,12 +41,12 @@ export default function App() {
           <ActionablePenaltyBanner />
           <PittingBanner />
           <TyreWidget />
+          <StatusWidget />
         </View>
         <View style={s.col}>
           <SafetyCarAlert />
           <StrategyCard />
           <GapsWidget />
-          <StatusWidget />
         </View>
       </View>
       <SettingsSheet />

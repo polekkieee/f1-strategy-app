@@ -180,12 +180,9 @@ describe("useRaceStore & Schema Synchronization", () => {
     // When enabled: specific Pirelli grade stamped alongside tyre age (e.g. SOFT (C3) · 12 LAPS)
     assert.equal(
       formatTyreAgeDisplay(12, "Soft", "C3", true),
-      "SOFT (C3) · 12 LAPS"
+      "(C3) · 12 LAPS"
     );
-    assert.equal(
-      formatTyreAgeDisplay(1, "Hard", "C1", true),
-      "HARD (C1) · 1 LAP"
-    );
+    assert.equal(formatTyreAgeDisplay(1, "Hard", "C1", true), "(C1) · 1 LAP");
 
     // When disabled (default): displays plain tyre age with consistent uppercase LAPS
     assert.equal(formatTyreAgeDisplay(12, "Soft", "C3", false), "12 LAPS");

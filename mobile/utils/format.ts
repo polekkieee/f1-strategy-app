@@ -32,8 +32,7 @@ export function formatTyreAgeDisplay(
   const ageLabel = `${age} ${age === 1 ? "LAP" : "LAPS"}`;
 
   if (showActual && actual && actual.toUpperCase() !== visual.toUpperCase()) {
-    const visualPrefix = visual ? `${visual.toUpperCase()} ` : "";
-    return `${visualPrefix}(${actual.toUpperCase()}) · ${ageLabel}`;
+    return `(${actual.toUpperCase()}) · ${ageLabel}`;
   }
 
   return ageLabel;
