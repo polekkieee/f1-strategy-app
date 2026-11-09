@@ -62,6 +62,9 @@ export function SettingsSheet() {
       visible={isSettingsOpen}
       animationType="slide"
       transparent
+      // The HUD is landscape-locked (app.json + ScreenOrientation). Modal defaults to
+      // portrait-only on iOS, and a mask with no overlap crashes the native app.
+      supportedOrientations={["landscape", "landscape-left", "landscape-right"]}
       onRequestClose={closeSettings}
     >
       <View style={s.backdrop}>
