@@ -37,6 +37,14 @@ export interface RaceState {
   tireWearRF: number;
   tireWearLR: number;
   tireWearRR: number;
+  tyreSurfaceTempLF: number;
+  tyreSurfaceTempRF: number;
+  tyreSurfaceTempLR: number;
+  tyreSurfaceTempRR: number;
+  tyreInnerTempLF: number;
+  tyreInnerTempRF: number;
+  tyreInnerTempLR: number;
+  tyreInnerTempRR: number;
   tireAgeLaps: number;
   ersStorage: number;
   fuelRemainingLaps: number;
@@ -83,6 +91,14 @@ const initialState: RaceState = {
   tireWearRF: 0,
   tireWearLR: 0,
   tireWearRR: 0,
+  tyreSurfaceTempLF: 0,
+  tyreSurfaceTempRF: 0,
+  tyreSurfaceTempLR: 0,
+  tyreSurfaceTempRR: 0,
+  tyreInnerTempLF: 0,
+  tyreInnerTempRF: 0,
+  tyreInnerTempLR: 0,
+  tyreInnerTempRR: 0,
   tireAgeLaps: 0,
   ersStorage: 0,
   fuelRemainingLaps: 0,
