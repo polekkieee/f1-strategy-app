@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -11,7 +12,11 @@ import {
 import { LandscapeModal, LANDSCAPE_MODAL_ORIENTATIONS } from "./LandscapeModal";
 import { useShallow } from "zustand/react/shallow";
 import { testBackendConnection } from "../config";
-import { useSettingsStore } from "../store/useSettingsStore";
+import {
+  useSettingsStore,
+  HUD_LAYOUT_OPTIONS,
+  type HudLayoutType,
+} from "../store/useSettingsStore";
 import { colors } from "../ui/theme";
 
 export type TestStatus =
@@ -27,11 +32,13 @@ export interface SettingsSheetViewProps {
   testState: TestStatus;
   showActualTyreCompound: boolean;
   enableHapticAlerts: boolean;
+  hudLayout?: HudLayoutType;
   onDraftHostChange: (text: string) => void;
   onTestConnection: () => void;
   onSave: () => void;
   onToggleActualTyre: (val: boolean) => void;
   onToggleHaptics: (val: boolean) => void;
+  onSelectHudLayout?: (layout: HudLayoutType) => void;
   onClose: () => void;
 }
 
@@ -42,11 +49,13 @@ export function SettingsSheetView({
   testState,
   showActualTyreCompound,
   enableHapticAlerts,
+  hudLayout = "thumb_wings",
   onDraftHostChange,
   onTestConnection,
   onSave,
   onToggleActualTyre,
   onToggleHaptics,
+  onSelectHudLayout,
   onClose,
 }: SettingsSheetViewProps) {
   return (
@@ -66,89 +75,134 @@ export function SettingsSheetView({
             </Pressable>
           </View>
 
-          <Text style={s.label}>BACKEND LAN HOST (IP:PORT)</Text>
-          <TextInput
-            value={draftHost}
-            onChangeText={onDraftHostChange}
-            placeholder="192.168.1.50:5000"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            style={s.input}
-          />
-          <Text style={s.hint}>
-            Active telemetry & strategy endpoint: ws://{activeHost}
-          </Text>
-
-          {testState.kind === "ok" && (
-            <Text style={[s.feedback, { color: colors.good }]}>
-              Connected to {testState.host}
-            </Text>
-          )}
-          {testState.kind === "error" && (
-            <Text style={[s.feedback, { color: colors.bad }]}>
-              Connection failed: {testState.error}
-            </Text>
-          )}
-
-          <View style={s.divider} />
-
-          <View style={s.toggleRow}>
-            <View style={s.toggleInfo}>
-              <Text style={s.toggleLabel}>
-                Show Actual Tyre Compound (C1–C5)
-              </Text>
-              <Text style={s.toggleHint}>
-                Display underlying Pirelli grade alongside tyre age in Tyre
-                widget
-              </Text>
-            </View>
-            <Switch
-              value={showActualTyreCompound}
-              onValueChange={onToggleActualTyre}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor={colors.text}
-              accessibilityLabel="Show Actual Tyre Compound (C1–C5)"
+          <ScrollView
+            style={s.scrollBody}
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={s.label}>BACKEND LAN HOST (IP:PORT)</Text>
+            <TextInput
+              value={draftHost}
+              onChangeText={onDraftHostChange}
+              placeholder="192.168.1.50:5000"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={s.input}
             />
-          </View>
+            <Text style={s.hint}>
+              Active telemetry & strategy endpoint: ws://{activeHost}
+            </Text>
 
-          <View style={s.toggleRow}>
-            <View style={s.toggleInfo}>
-              <Text style={s.toggleLabel}>Enable Haptic Alerts</Text>
-              <Text style={s.toggleHint}>
-                Trigger vibration pulses on rig mount for critical race events
+            {testState.kind === "ok" && (
+              <Text style={[s.feedback, { color: colors.good }]}>
+                Connected to {testState.host}
               </Text>
+            )}
+            {testState.kind === "error" && (
+              <Text style={[s.feedback, { color: colors.bad }]}>
+                Connection failed: {testState.error}
+              </Text>
+            )}
+
+            <View style={s.divider} />
+
+            <View style={s.toggleRow}>
+              <View style={s.toggleInfo}>
+                <Text style={s.toggleLabel}>
+                  Show Actual Tyre Compound (C1–C5)
+                </Text>
+                <Text style={s.toggleHint}>
+                  Display underlying Pirelli grade alongside tyre age in Tyre
+                  widget
+                </Text>
+              </View>
+              <Switch
+                value={showActualTyreCompound}
+                onValueChange={onToggleActualTyre}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor={colors.text}
+                accessibilityLabel="Show Actual Tyre Compound (C1–C5)"
+              />
             </View>
-            <Switch
-              value={enableHapticAlerts}
-              onValueChange={onToggleHaptics}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor={colors.text}
-              accessibilityLabel="Enable Haptic Alerts"
-            />
-          </View>
 
-          <View style={s.actions}>
-            <Pressable
-              onPress={onTestConnection}
-              disabled={testState.kind === "testing"}
-              style={[
-                s.secondaryBtn,
-                testState.kind === "testing" && s.disabledBtn,
-              ]}
-            >
-              {testState.kind === "testing" ? (
-                <ActivityIndicator color={colors.text} size="small" />
-              ) : (
-                <Text style={s.secondaryBtnText}>TEST CONNECTION</Text>
-              )}
-            </Pressable>
+            <View style={s.toggleRow}>
+              <View style={s.toggleInfo}>
+                <Text style={s.toggleLabel}>Enable Haptic Alerts</Text>
+                <Text style={s.toggleHint}>
+                  Trigger vibration pulses on rig mount for critical race events
+                </Text>
+              </View>
+              <Switch
+                value={enableHapticAlerts}
+                onValueChange={onToggleHaptics}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor={colors.text}
+                accessibilityLabel="Enable Haptic Alerts"
+              />
+            </View>
 
-            <Pressable onPress={onSave} style={s.primaryBtn}>
-              <Text style={s.primaryBtnText}>SAVE & CONNECT</Text>
-            </Pressable>
-          </View>
+            <View style={s.divider} />
+
+            {/* HUD Rig Layout Selection */}
+            <Text style={s.sectionHeader}>HUD RIG LAYOUT</Text>
+            <Text style={s.sectionHint}>
+              Select the interface structure optimized for your rig and wheel
+              mount
+            </Text>
+
+            <View style={s.layoutGrid}>
+              {HUD_LAYOUT_OPTIONS.map((opt) => {
+                const isSelected = opt.id === hudLayout;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={[s.layoutCard, isSelected && s.layoutCardSelected]}
+                    onPress={() => onSelectHudLayout?.(opt.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${opt.title} layout`}
+                  >
+                    <View style={s.layoutCardHead}>
+                      <Text
+                        style={[
+                          s.layoutTitle,
+                          isSelected && s.layoutTitleSelected,
+                        ]}
+                      >
+                        {opt.title}
+                      </Text>
+                      {isSelected && (
+                        <Text style={s.layoutSelectedTag}>ACTIVE</Text>
+                      )}
+                    </View>
+                    <Text style={s.layoutSubtitle}>{opt.subtitle}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={s.actions}>
+              <Pressable
+                onPress={onTestConnection}
+                disabled={testState.kind === "testing"}
+                style={[
+                  s.secondaryBtn,
+                  testState.kind === "testing" && s.disabledBtn,
+                ]}
+              >
+                {testState.kind === "testing" ? (
+                  <ActivityIndicator color={colors.text} size="small" />
+                ) : (
+                  <Text style={s.secondaryBtnText}>TEST CONNECTION</Text>
+                )}
+              </Pressable>
+
+              <Pressable onPress={onSave} style={s.primaryBtn}>
+                <Text style={s.primaryBtnText}>SAVE & CONNECT</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </LandscapeModal>
@@ -160,20 +214,24 @@ export function SettingsSheet() {
     backendHost,
     showActualTyreCompound,
     enableHapticAlerts,
+    hudLayout,
     isSettingsOpen,
     setBackendHost,
     setShowActualTyreCompound,
     setEnableHapticAlerts,
+    setHudLayout,
     closeSettings,
   } = useSettingsStore(
     useShallow((s) => ({
       backendHost: s.backendHost,
       showActualTyreCompound: s.showActualTyreCompound,
       enableHapticAlerts: s.enableHapticAlerts,
+      hudLayout: s.hudLayout,
       isSettingsOpen: s.isSettingsOpen,
       setBackendHost: s.setBackendHost,
       setShowActualTyreCompound: s.setShowActualTyreCompound,
       setEnableHapticAlerts: s.setEnableHapticAlerts,
+      setHudLayout: s.setHudLayout,
       closeSettings: s.closeSettings,
     }))
   );
@@ -213,6 +271,7 @@ export function SettingsSheet() {
       testState={testState}
       showActualTyreCompound={showActualTyreCompound}
       enableHapticAlerts={enableHapticAlerts}
+      hudLayout={hudLayout}
       onDraftHostChange={(text) => {
         setDraftHost(text);
         if (testState.kind !== "idle") setTestState({ kind: "idle" });
@@ -224,6 +283,9 @@ export function SettingsSheet() {
       }}
       onToggleHaptics={(val) => {
         void setEnableHapticAlerts(val);
+      }}
+      onSelectHudLayout={(layout) => {
+        void setHudLayout(layout);
       }}
       onClose={closeSettings}
     />
@@ -241,14 +303,21 @@ const s = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    width: 420,
-    maxWidth: "85%",
+    width: 440,
+    maxWidth: "88%",
     height: "100%",
     backgroundColor: colors.card,
     borderLeftWidth: 1,
     borderColor: colors.border,
-    padding: 20,
-    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  scrollBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
   header: {
     flexDirection: "row",
@@ -328,6 +397,59 @@ const s = StyleSheet.create({
   toggleHint: {
     color: colors.muted,
     fontSize: 10,
+    marginTop: 2,
+  },
+  sectionHeader: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginBottom: 2,
+    marginTop: 4,
+  },
+  sectionHint: {
+    color: colors.muted,
+    fontSize: 10,
+    marginBottom: 8,
+  },
+  layoutGrid: {
+    gap: 6,
+    marginBottom: 6,
+  },
+  layoutCard: {
+    backgroundColor: colors.bg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+  },
+  layoutCardSelected: {
+    borderColor: colors.accent,
+    backgroundColor: "#112240",
+  },
+  layoutCardHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  layoutTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  layoutTitleSelected: {
+    color: colors.accent,
+  },
+  layoutSelectedTag: {
+    color: colors.accent,
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  layoutSubtitle: {
+    color: colors.muted,
+    fontSize: 9,
     marginTop: 2,
   },
   actions: {

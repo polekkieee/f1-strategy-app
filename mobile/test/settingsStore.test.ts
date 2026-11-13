@@ -5,8 +5,10 @@ import {
   BACKEND_HOST_STORAGE_KEY,
   SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY,
   ENABLE_HAPTIC_ALERTS_STORAGE_KEY,
+  HUD_LAYOUT_STORAGE_KEY,
   configureSettingsStorage,
   DEFAULT_BACKEND_HOST,
+  DEFAULT_HUD_LAYOUT,
   useSettingsStore,
 } from "../store/useSettingsStore";
 import {
@@ -28,10 +30,12 @@ describe("SettingsStore & Host Configuration", () => {
     await storage.removeItem(BACKEND_HOST_STORAGE_KEY);
     await storage.removeItem(SHOW_ACTUAL_TYRE_COMPOUND_STORAGE_KEY);
     await storage.removeItem(ENABLE_HAPTIC_ALERTS_STORAGE_KEY);
+    await storage.removeItem(HUD_LAYOUT_STORAGE_KEY);
     useSettingsStore.setState({
       backendHost: DEFAULT_BACKEND_HOST,
       showActualTyreCompound: false,
       enableHapticAlerts: true,
+      hudLayout: DEFAULT_HUD_LAYOUT,
       isHydrated: false,
       isSettingsOpen: false,
       hasAutoPromptedConnection: false,
@@ -206,6 +210,36 @@ describe("SettingsStore & Host Configuration", () => {
       await storage.getItem(ENABLE_HAPTIC_ALERTS_STORAGE_KEY),
       "true"
     );
+  });
+
+  it("defaults hudLayout to DEFAULT_HUD_LAYOUT and persists layout choices to AsyncStorage", async () => {
+    assert.equal(useSettingsStore.getState().hudLayout, DEFAULT_HUD_LAYOUT);
+
+    const saved = await useSettingsStore
+      .getState()
+      .setHudLayout("command_deck");
+    assert.equal(saved, "command_deck");
+    assert.equal(useSettingsStore.getState().hudLayout, "command_deck");
+    assert.equal(await storage.getItem(HUD_LAYOUT_STORAGE_KEY), "command_deck");
+
+    // Verify loadSettings hydrates persisted layout
+    useSettingsStore.setState({
+      hudLayout: "classic",
+      isHydrated: false,
+    });
+    await useSettingsStore.getState().loadSettings();
+    assert.equal(useSettingsStore.getState().hudLayout, "command_deck");
+
+    // Verify switching to hybrid_tiles persists
+    await useSettingsStore.getState().setHudLayout("hybrid_tiles");
+    assert.equal(useSettingsStore.getState().hudLayout, "hybrid_tiles");
+    assert.equal(await storage.getItem(HUD_LAYOUT_STORAGE_KEY), "hybrid_tiles");
+
+    // Verify fallback when corrupted or invalid value in storage
+    await storage.setItem(HUD_LAYOUT_STORAGE_KEY, "invalid_layout");
+    useSettingsStore.setState({ isHydrated: false });
+    await useSettingsStore.getState().loadSettings();
+    assert.equal(useSettingsStore.getState().hudLayout, DEFAULT_HUD_LAYOUT);
   });
 
   it("routes strategy API requests to the dynamically configured backendHost", async () => {

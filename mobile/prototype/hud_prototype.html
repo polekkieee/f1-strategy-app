@@ -1,0 +1,1797 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      PitAI HUD Prototype — Minimal Landscape Canvas & Quick Prompts
+    </title>
+    <style>
+      :root {
+        --bg: #070c18;
+        --card: #10192d;
+        --card-border: #1d2c4d;
+        --card-hover: #16233f;
+        --text: #f1f5f9;
+        --muted: #64748b;
+        --accent: #38bdf8;
+        --good: #22c55e;
+        --warn: #f59e0b;
+        --bad: #ef4444;
+        --soft: #ef4444;
+        --medium: #facc15;
+        --hard: #f8fafc;
+        --inters: #22c55e;
+        --wet: #3b82f6;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      body {
+        background-color: #030712;
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace,
+          sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        overflow-x: hidden;
+      }
+
+      .meta-bar {
+        width: 100%;
+        max-width: 900px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .meta-tag {
+        background: #1e293b;
+        color: var(--accent);
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+      }
+
+      .scenario-picker {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .scenario-btn {
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #94a3b8;
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.15s ease;
+      }
+
+      .scenario-btn.active {
+        background: #0284c7;
+        color: #fff;
+        border-color: #38bdf8;
+      }
+
+      /* Rig Frame Simulation (Phone Landscape 844x390 standard) */
+      .rig-bezel {
+        width: 864px;
+        height: 410px;
+        background: #0f172a;
+        border-radius: 24px;
+        padding: 10px;
+        box-shadow:
+          0 25px 60px -15px rgba(0, 0, 0, 0.9),
+          0 0 0 2px #334155;
+        position: relative;
+      }
+
+      .hud-screen {
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+      }
+
+      /* Top persistent minimal status bar */
+      .top-status {
+        height: 28px;
+        background: rgba(15, 23, 42, 0.85);
+        border-bottom: 1px solid #1e293b;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+
+      .status-left,
+      .status-center,
+      .status-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .badge-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+      }
+
+      .badge-drs-on {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--good);
+        border: 1px solid var(--good);
+      }
+      .badge-drs-off {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--bad);
+        border: 1px solid var(--bad);
+      }
+
+      /* Canvas Body */
+      .canvas-viewport {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .variant-container {
+        width: 100%;
+        height: 100%;
+        display: none;
+        padding: 8px 10px;
+      }
+
+      .variant-container.active {
+        display: flex;
+      }
+
+      /* Shared Card Styles */
+      .card {
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+
+      .card-title {
+        font-size: 10px;
+        font-weight: 800;
+        color: var(--muted);
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      /* Tactile Quick Prompt Buttons */
+      .prompt-btn {
+        background: #162444;
+        border: 1.5px solid #283e70;
+        color: #e2e8f0;
+        border-radius: 8px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        transition: all 0.08s ease;
+        touch-action: manipulation;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .prompt-btn:active,
+      .prompt-btn.triggered {
+        transform: scale(0.96);
+        background: #0284c7 !important;
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
+        color: #fff !important;
+      }
+
+      .prompt-btn .btn-primary {
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        font-weight: 800;
+      }
+
+      .prompt-btn .btn-sub {
+        font-size: 9px;
+        color: #94a3b8;
+        margin-top: 2px;
+        font-weight: 600;
+      }
+
+      .prompt-btn.urgent {
+        background: #450a0a;
+        border-color: #ef4444;
+        animation: pulse-border 1.5s infinite;
+      }
+
+      @keyframes pulse-border {
+        0%,
+        100% {
+          border-color: #ef4444;
+          box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+        }
+        50% {
+          border-color: #f87171;
+          box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
+        }
+      }
+
+      /* Tyre Matrix (Dual Temps + Wear) */
+      .tyre-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-gap: 6px;
+        flex: 1;
+      }
+
+      .tyre-cell {
+        background: rgba(11, 19, 38, 0.9);
+        border: 1.5px solid #233457;
+        border-radius: 6px;
+        padding: 4px 6px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .tyre-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      .tyre-pos {
+        font-size: 9px;
+        font-weight: 800;
+        color: var(--muted);
+      }
+
+      .tyre-wear {
+        font-size: 13px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .tyre-temps {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2px;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+
+      .temp-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .temp-lbl {
+        font-size: 8px;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }
+
+      .temp-val {
+        font-size: 11px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .temp-carcass-hot {
+        color: var(--bad);
+      }
+      .temp-carcass-opt {
+        color: var(--good);
+      }
+      .temp-carcass-cold {
+        color: var(--accent);
+      }
+
+      /* Rejoin Window Styles */
+      .rejoin-hero {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 2px;
+      }
+
+      .rejoin-badge {
+        font-size: 26px;
+        font-weight: 900;
+        background: #1e293b;
+        border: 2px solid #334155;
+        padding: 2px 10px;
+        border-radius: 6px;
+        letter-spacing: -0.5px;
+        color: #fff;
+      }
+
+      .rejoin-status {
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        display: inline-block;
+      }
+
+      .status-clean-air {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--good);
+        border: 1px solid var(--good);
+      }
+      .status-traffic-pack {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--bad);
+        border: 1px solid var(--bad);
+      }
+      .status-tight-margin {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warn);
+        border: 1px solid var(--warn);
+      }
+
+      .rejoin-gaps {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        background: rgba(0, 0, 0, 0.25);
+        padding: 4px 6px;
+        border-radius: 4px;
+      }
+
+      /* Weather Crossover Styles */
+      .weather-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 2px;
+      }
+
+      .weather-clock {
+        font-size: 26px;
+        font-weight: 900;
+        color: #38bdf8;
+        letter-spacing: -0.5px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .crossover-target {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+      }
+
+      .target-compound-pill {
+        font-size: 11px;
+        font-weight: 900;
+        padding: 2px 8px;
+        border-radius: 12px;
+        text-transform: uppercase;
+        border: 1.5px solid transparent;
+      }
+
+      .target-inters {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--inters);
+        border-color: var(--inters);
+      }
+      .target-slicks {
+        background: rgba(250, 204, 21, 0.2);
+        color: var(--medium);
+        border-color: var(--medium);
+      }
+
+      .weather-graph-bar {
+        height: 6px;
+        background: #1e293b;
+        border-radius: 3px;
+        margin-top: 6px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .weather-graph-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #38bdf8, #22c55e 40%, #ef4444 80%);
+        transition: width 0.3s ease;
+      }
+
+      /* Live Engineer Callout Banner */
+      .engineer-radio-banner {
+        position: absolute;
+        top: 32px;
+        left: 12px;
+        right: 12px;
+        background: rgba(15, 23, 42, 0.95);
+        border: 2px solid #38bdf8;
+        box-shadow:
+          0 8px 24px rgba(0, 0, 0, 0.8),
+          0 0 16px rgba(56, 189, 248, 0.5);
+        border-radius: 8px;
+        padding: 6px 12px;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        z-index: 50;
+        animation: dropDown 0.2s ease-out;
+      }
+
+      @keyframes dropDown {
+        from {
+          transform: translateY(-10px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .radio-icon {
+        font-size: 18px;
+        color: #38bdf8;
+      }
+
+      .radio-text {
+        flex: 1;
+        font-size: 12px;
+        font-weight: 800;
+        color: #f8fafc;
+        letter-spacing: 0.3px;
+      }
+
+      /* ========================================================
+       VARIANT A: Ergonomic Rig Thumb-Wings (Split Touch Wings)
+       ======================================================== */
+      #variant-a {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .wing-left {
+        width: 175px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .center-canvas {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .wing-right {
+        width: 195px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      /* ========================================================
+       VARIANT B: Tactical Telemetry Grid + Lower Command Deck
+       ======================================================== */
+      #variant-b {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .deck-top-grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 240px 1fr 220px;
+        grid-gap: 8px;
+      }
+
+      .deck-bottom-bar {
+        height: 70px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-gap: 8px;
+      }
+
+      /* ========================================================
+       VARIANT C: Contextual Focal Hero + Hybrid Tile Buttons
+       ======================================================== */
+      #variant-c {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .hero-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .hybrid-pillar {
+        width: 250px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .hybrid-tile {
+        flex: 1;
+        background: #14203a;
+        border: 2px solid #233660;
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        transition: all 0.1s ease;
+      }
+
+      .hybrid-tile:active {
+        transform: scale(0.97);
+        background: #0284c7;
+        border-color: #38bdf8;
+      }
+
+      .hybrid-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .hybrid-title {
+        font-size: 10px;
+        font-weight: 800;
+        color: #94a3b8;
+        letter-spacing: 0.5px;
+      }
+
+      .hybrid-val {
+        font-size: 13px;
+        font-weight: 900;
+        color: #fff;
+        margin-top: 2px;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      /* Floating Prototype Switcher Bar */
+      .prototype-switcher {
+        position: fixed;
+        bottom: 24px;
+        background: rgba(15, 23, 42, 0.95);
+        border: 1.5px solid #38bdf8;
+        border-radius: 9999px;
+        padding: 6px 14px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow:
+          0 10px 30px -5px rgba(0, 0, 0, 0.8),
+          0 0 16px rgba(56, 189, 248, 0.3);
+        z-index: 100;
+      }
+
+      .switcher-arrow {
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #fff;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 900;
+        transition: background 0.15s ease;
+      }
+
+      .switcher-arrow:hover {
+        background: #0284c7;
+        border-color: #38bdf8;
+      }
+
+      .switcher-label {
+        font-size: 13px;
+        font-weight: 800;
+        color: #f1f5f9;
+        letter-spacing: 0.3px;
+        min-width: 280px;
+        text-align: center;
+      }
+
+      .switcher-pill {
+        font-size: 10px;
+        background: #0369a1;
+        color: #e0f2fe;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-left: 6px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Scenario & Meta Control Bar -->
+    <div class="meta-bar">
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span class="meta-tag">HITL UI PROTOTYPE</span>
+        <span style="font-weight: 700; color: #cbd5e1"
+          >Issue #22: Minimal HUD & Quick Prompts</span
+        >
+      </div>
+      <div class="scenario-picker">
+        <span style="font-size: 11px; color: #94a3b8; font-weight: 600"
+          >Scenario:</span
+        >
+        <button
+          class="scenario-btn active"
+          onclick="setScenario('dry_pit_window')"
+        >
+          1. Dry Pit Window
+        </button>
+        <button class="scenario-btn" onclick="setScenario('rain_crossover')">
+          2. Rain Crossover (2m)
+        </button>
+        <button class="scenario-btn" onclick="setScenario('traffic_risk')">
+          3. Traffic Pack Risk
+        </button>
+        <button class="scenario-btn" onclick="setScenario('thermal_distress')">
+          4. Rear Tyre Blistering
+        </button>
+      </div>
+    </div>
+
+    <!-- Physical Sim Rig Display Frame (Landscape 844x390) -->
+    <div class="rig-bezel">
+      <div class="hud-screen">
+        <!-- Top Persistent Bar -->
+        <div class="top-status">
+          <div class="status-left">
+            <span style="color: var(--accent); font-weight: 900">PITAI</span>
+            <span style="color: #64748b">|</span>
+            <span id="st-track">SILVERSTONE GP</span>
+            <span style="color: #64748b">•</span>
+            <span id="st-lap" style="font-variant-numeric: tabular-nums"
+              >LAP 14/52</span
+            >
+          </div>
+          <div class="status-center">
+            <span
+              id="st-pos"
+              style="font-size: 13px; font-weight: 900; color: #f8fafc"
+              >P3</span
+            >
+            <span
+              id="st-gaps"
+              style="color: #94a3b8; font-variant-numeric: tabular-nums"
+              >+2.4s ahead / -1.1s behind</span
+            >
+          </div>
+          <div class="status-right">
+            <span id="st-drs" class="badge-pill badge-drs-on">DRS ACTIVE</span>
+            <span id="st-warn" style="color: var(--warn); font-size: 10px"
+              >LIMITS: 1/3</span
+            >
+          </div>
+        </div>
+
+        <!-- Tactical Engineer Radio Banner Popup -->
+        <div id="engineer-banner" class="engineer-radio-banner">
+          <span class="radio-icon">📻</span>
+          <span id="engineer-banner-text" class="radio-text"
+            >"Box this lap. Confirm Medium tyres."</span
+          >
+        </div>
+
+        <!-- Main Canvas Viewport -->
+        <div class="canvas-viewport">
+          <!-- =========================================================================
+             VARIANT A: Ergonomic Rig Thumb-Wings (Split Outer Touch Zones)
+             ========================================================================= -->
+          <div id="variant-a" class="variant-container active">
+            <!-- Left Thumb Zone: 3 Vertical Tactile Prompt Buttons -->
+            <div class="wing-left">
+              <button
+                class="prompt-btn urgent"
+                style="flex: 1.2"
+                onclick="triggerPrompt('BOX_THIS_LAP')"
+              >
+                <span class="btn-primary" style="color: #fca5a5"
+                  >🛑 BOX THIS LAP</span
+                >
+                <span class="btn-sub">Req: Mediums</span>
+              </button>
+              <button
+                class="prompt-btn"
+                style="flex: 1"
+                onclick="triggerPrompt('CROSSOVER')"
+              >
+                <span class="btn-primary">🌧️ CROSSOVER?</span>
+                <span class="btn-sub" id="va-rain-sub">Rain in 2m45s</span>
+              </button>
+              <button
+                class="prompt-btn"
+                style="flex: 1"
+                onclick="triggerPrompt('REJOIN')"
+              >
+                <span class="btn-primary">⏱️ REJOIN SLOT</span>
+                <span class="btn-sub" id="va-rejoin-sub"
+                  >Exit P7 [Clean Air]</span
+                >
+              </button>
+            </div>
+
+            <!-- Center Strategic Spine: Rejoin & Weather Cards -->
+            <div class="center-canvas">
+              <!-- Rejoin & Traffic Window -->
+              <div class="card" style="flex: 1.1">
+                <div class="card-title">
+                  <span>PIT EXIT REJOIN & TRAFFIC WINDOW</span>
+                  <span
+                    id="va-pitloss-tag"
+                    style="
+                      font-size: 9px;
+                      color: var(--accent);
+                      font-weight: 700;
+                    "
+                    >21.8s PIT LOSS [PADDOCK]</span
+                  >
+                </div>
+                <div class="rejoin-hero">
+                  <div id="va-rejoin-badge" class="rejoin-badge">P7</div>
+                  <div style="flex: 1">
+                    <span
+                      id="va-rejoin-status"
+                      class="rejoin-status status-clean-air"
+                      >CLEAN AIR WINDOW</span
+                    >
+                    <div class="rejoin-gaps">
+                      <span id="va-gap-ahead"
+                        >Ahead: +4.2s (ALO • 18L Hard)</span
+                      >
+                      <span id="va-gap-behind"
+                        >Behind: +3.1s (TSU • 12L Med)</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Weather Crossover Countdown -->
+              <div class="card" style="flex: 1">
+                <div class="card-title">
+                  <span>WEATHER CROSSOVER COUNTDOWN</span>
+                  <span id="va-rain-rate" style="font-size: 9px; color: #94a3b8"
+                    >12% DAMP • RISING</span
+                  >
+                </div>
+                <div class="weather-row">
+                  <div>
+                    <div id="va-crossover-clock" class="weather-clock">
+                      02:45
+                    </div>
+                    <div
+                      style="font-size: 9px; color: #94a3b8; font-weight: 700"
+                    >
+                      MINUTES TO CROSSOVER
+                    </div>
+                  </div>
+                  <div class="crossover-target">
+                    <span
+                      id="va-target-pill"
+                      class="target-compound-pill target-inters"
+                      >TARGET: INTERMEDIATES</span
+                    >
+                    <span
+                      style="font-size: 9px; color: #94a3b8; margin-top: 3px"
+                      >Inters window @ 20% damp</span
+                    >
+                  </div>
+                </div>
+                <div class="weather-graph-bar">
+                  <div
+                    id="va-weather-fill"
+                    class="weather-graph-fill"
+                    style="width: 25%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Thumb Zone: Dual Tyre Matrix & 4th Prompt -->
+            <div class="wing-right">
+              <div class="card" style="flex: 1">
+                <div class="card-title">
+                  <span>DUAL TYRE MATRIX</span>
+                  <span
+                    style="
+                      font-size: 9px;
+                      color: var(--medium);
+                      font-weight: 800;
+                    "
+                    >MED • 14L</span
+                  >
+                </div>
+                <div class="tyre-grid">
+                  <!-- FL -->
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">FL</span>
+                      <span
+                        id="va-wear-fl"
+                        class="tyre-wear"
+                        style="color: var(--good)"
+                        >28%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="va-ts-fl" class="temp-val">102°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="va-tc-fl" class="temp-val temp-carcass-opt"
+                          >94°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <!-- FR -->
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">FR</span>
+                      <span
+                        id="va-wear-fr"
+                        class="tyre-wear"
+                        style="color: var(--good)"
+                        >31%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="va-ts-fr" class="temp-val">106°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="va-tc-fr" class="temp-val temp-carcass-opt"
+                          >97°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <!-- RL -->
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">RL</span>
+                      <span
+                        id="va-wear-rl"
+                        class="tyre-wear"
+                        style="color: var(--warn)"
+                        >42%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="va-ts-rl" class="temp-val">108°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="va-tc-rl" class="temp-val temp-carcass-opt"
+                          >101°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <!-- RR -->
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">RR</span>
+                      <span
+                        id="va-wear-rr"
+                        class="tyre-wear"
+                        style="color: var(--warn)"
+                        >44%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="va-ts-rr" class="temp-val">110°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="va-tc-rr" class="temp-val temp-carcass-opt"
+                          >103°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- 4th Quick Prompt on Right Thumb -->
+              <button
+                class="prompt-btn"
+                style="height: 48px"
+                onclick="triggerPrompt('TYRE_STATUS')"
+              >
+                <span class="btn-primary">🛞 THERMALS & CLIFF</span>
+                <span class="btn-sub">Rear wear 44%</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- =========================================================================
+             VARIANT B: Tactical Telemetry Grid + Lower Command Deck
+             ========================================================================= -->
+          <div id="variant-b" class="variant-container">
+            <!-- Upper Telemetry Cluster (70% height) -->
+            <div class="deck-top-grid">
+              <!-- Left: Dual Tyre Thermals & Wear Graphic -->
+              <div class="card">
+                <div class="card-title">
+                  <span>TYRE THERMAL DEGRADATION</span>
+                  <span style="color: var(--medium); font-weight: 800"
+                    >MED (14L)</span
+                  >
+                </div>
+                <div class="tyre-grid">
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">FL</span
+                      ><span
+                        id="vb-wear-fl"
+                        class="tyre-wear"
+                        style="color: var(--good)"
+                        >28%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="vb-ts-fl" class="temp-val">102°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="vb-tc-fl" class="temp-val temp-carcass-opt"
+                          >94°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">FR</span
+                      ><span
+                        id="vb-wear-fr"
+                        class="tyre-wear"
+                        style="color: var(--good)"
+                        >31%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="vb-ts-fr" class="temp-val">106°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="vb-tc-fr" class="temp-val temp-carcass-opt"
+                          >97°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">RL</span
+                      ><span
+                        id="vb-wear-rl"
+                        class="tyre-wear"
+                        style="color: var(--warn)"
+                        >42%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="vb-ts-rl" class="temp-val">108°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="vb-tc-rl" class="temp-val temp-carcass-opt"
+                          >101°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">RR</span
+                      ><span
+                        id="vb-wear-rr"
+                        class="tyre-wear"
+                        style="color: var(--warn)"
+                        >44%</span
+                      >
+                    </div>
+                    <div class="tyre-temps">
+                      <div class="temp-item">
+                        <span class="temp-lbl">SURF</span
+                        ><span id="vb-ts-rr" class="temp-val">110°</span>
+                      </div>
+                      <div class="temp-item">
+                        <span class="temp-lbl">CORE</span
+                        ><span id="vb-tc-rr" class="temp-val temp-carcass-opt"
+                          >103°</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Center: Traffic Radar & Exit Slot -->
+              <div class="card">
+                <div class="card-title">
+                  <span>PIT REJOIN & TRAFFIC WINDOW</span>
+                  <span
+                    id="vb-pitloss-tag"
+                    style="font-size: 9px; color: var(--accent)"
+                    >21.8s LOSS</span
+                  >
+                </div>
+                <div class="rejoin-hero" style="margin-top: 4px">
+                  <div
+                    id="vb-rejoin-badge"
+                    class="rejoin-badge"
+                    style="font-size: 30px"
+                  >
+                    P7
+                  </div>
+                  <div>
+                    <span
+                      id="vb-rejoin-status"
+                      class="rejoin-status status-clean-air"
+                      >CLEAN AIR [NO TRAFFIC]</span
+                    >
+                    <div
+                      style="font-size: 10px; color: #94a3b8; margin-top: 4px"
+                    >
+                      Clean air margin: +4.2s ahead of Alonso
+                    </div>
+                  </div>
+                </div>
+                <div class="rejoin-gaps" style="margin-top: 10px">
+                  <span id="vb-gap-ahead">Ahead: +4.2s (ALO)</span>
+                  <span id="vb-gap-behind">Behind: +3.1s (TSU)</span>
+                </div>
+              </div>
+
+              <!-- Right: Weather Countdown -->
+              <div class="card">
+                <div class="card-title">
+                  <span>WEATHER CROSSOVER</span>
+                  <span id="vb-rain-rate" style="font-size: 9px; color: #94a3b8"
+                    >12% DAMP</span
+                  >
+                </div>
+                <div style="text-align: center; margin-top: 4px">
+                  <div
+                    id="vb-crossover-clock"
+                    class="weather-clock"
+                    style="font-size: 32px"
+                  >
+                    02:45
+                  </div>
+                  <span
+                    id="vb-target-pill"
+                    class="target-compound-pill target-inters"
+                    style="margin-top: 4px; display: inline-block"
+                    >INTERMEDIATES</span
+                  >
+                </div>
+                <div class="weather-graph-bar" style="margin-top: 10px">
+                  <div
+                    id="vb-weather-fill"
+                    class="weather-graph-fill"
+                    style="width: 25%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lower Command Deck: 4 Massive Horizontal Buttons (30% height) -->
+            <div class="deck-bottom-bar">
+              <button
+                class="prompt-btn urgent"
+                onclick="triggerPrompt('BOX_THIS_LAP')"
+              >
+                <span class="btn-primary" style="font-size: 14px"
+                  >🛑 BOX THIS LAP</span
+                >
+                <span class="btn-sub">Confirm Pit Stop & Inters</span>
+              </button>
+              <button class="prompt-btn" onclick="triggerPrompt('CROSSOVER')">
+                <span class="btn-primary" style="font-size: 13px"
+                  >🌧️ CROSSOVER</span
+                >
+                <span class="btn-sub">Check Crossover Inters Window</span>
+              </button>
+              <button class="prompt-btn" onclick="triggerPrompt('REJOIN')">
+                <span class="btn-primary" style="font-size: 13px"
+                  >⏱️ REJOIN SLOT</span
+                >
+                <span class="btn-sub">Query Clean Air Traffic Gap</span>
+              </button>
+              <button class="prompt-btn" onclick="triggerPrompt('TYRE_STATUS')">
+                <span class="btn-primary" style="font-size: 13px"
+                  >🛞 TYRES / CLIFF</span
+                >
+                <span class="btn-sub">Carcass Degradation Status</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- =========================================================================
+             VARIANT C: Contextual Focal Hero + Hybrid Tile Buttons
+             ========================================================================= -->
+          <div id="variant-c" class="variant-container">
+            <!-- Left Hero Focus (65% width) -->
+            <div class="hero-main">
+              <!-- Dynamic Hero Card -->
+              <div
+                class="card"
+                style="
+                  flex: 1.3;
+                  background: #0c162c;
+                  border: 2px solid #253965;
+                "
+              >
+                <div class="card-title">
+                  <span
+                    id="vc-hero-tag"
+                    style="color: var(--accent); font-size: 11px"
+                    >PRIORITY: PIT STOP TRAFFIC RADAR</span
+                  >
+                  <span
+                    id="vc-pitloss-tag"
+                    style="font-size: 10px; color: var(--accent)"
+                    >21.8s LOSS</span
+                  >
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-top: 6px;
+                  "
+                >
+                  <div>
+                    <div
+                      style="font-size: 11px; color: #94a3b8; font-weight: 700"
+                    >
+                      PROJECTED PIT EXIT
+                    </div>
+                    <div style="display: flex; align-items: baseline; gap: 8px">
+                      <span
+                        id="vc-rejoin-badge"
+                        class="rejoin-badge"
+                        style="font-size: 40px; padding: 2px 14px"
+                        >P7</span
+                      >
+                      <span
+                        id="vc-rejoin-status"
+                        class="rejoin-status status-clean-air"
+                        style="font-size: 13px"
+                        >CLEAN AIR BUFFER</span
+                      >
+                    </div>
+                  </div>
+                  <div style="text-align: right">
+                    <div
+                      style="font-size: 11px; color: #94a3b8; font-weight: 700"
+                    >
+                      CROSSOVER ARRIVAL
+                    </div>
+                    <div
+                      id="vc-crossover-clock"
+                      class="weather-clock"
+                      style="font-size: 34px"
+                    >
+                      02:45
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="rejoin-gaps"
+                  style="margin-top: 8px; padding: 6px 10px"
+                >
+                  <span id="vc-gap-ahead"
+                    >Ahead on exit: +4.2s (ALO • 18L Hard)</span
+                  >
+                  <span id="vc-gap-behind"
+                    >Behind on exit: +3.1s (TSU • 12L Med)</span
+                  >
+                </div>
+              </div>
+
+              <!-- Secondary Glanceable Tyre Strip -->
+              <div class="card" style="flex: 0.9">
+                <div class="card-title">
+                  <span>PER-WHEEL DUAL TEMPERATURE MONITOR</span>
+                  <span style="font-size: 9px; color: var(--muted)"
+                    >SURF / INNER CARCASS / WEAR</span
+                  >
+                </div>
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    grid-gap: 6px;
+                    flex: 1;
+                  "
+                >
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">FL</span
+                      ><span
+                        id="vc-wear-fl"
+                        class="tyre-wear"
+                        style="color: var(--good); font-size: 11px"
+                        >28%</span
+                      >
+                    </div>
+                    <div
+                      style="font-size: 11px; font-weight: 800; margin-top: 2px"
+                    >
+                      102°
+                      <span
+                        id="vc-tc-fl"
+                        class="temp-carcass-opt"
+                        style="font-size: 10px"
+                        >(94°)</span
+                      >
+                    </div>
+                  </div>
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">FR</span
+                      ><span
+                        id="vc-wear-fr"
+                        class="tyre-wear"
+                        style="color: var(--good); font-size: 11px"
+                        >31%</span
+                      >
+                    </div>
+                    <div
+                      style="font-size: 11px; font-weight: 800; margin-top: 2px"
+                    >
+                      106°
+                      <span
+                        id="vc-tc-fr"
+                        class="temp-carcass-opt"
+                        style="font-size: 10px"
+                        >(97°)</span
+                      >
+                    </div>
+                  </div>
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">RL</span
+                      ><span
+                        id="vc-wear-rl"
+                        class="tyre-wear"
+                        style="color: var(--warn); font-size: 11px"
+                        >42%</span
+                      >
+                    </div>
+                    <div
+                      style="font-size: 11px; font-weight: 800; margin-top: 2px"
+                    >
+                      108°
+                      <span
+                        id="vc-tc-rl"
+                        class="temp-carcass-opt"
+                        style="font-size: 10px"
+                        >(101°)</span
+                      >
+                    </div>
+                  </div>
+                  <div class="tyre-cell">
+                    <div class="tyre-header">
+                      <span class="tyre-pos">RR</span
+                      ><span
+                        id="vc-wear-rr"
+                        class="tyre-wear"
+                        style="color: var(--warn); font-size: 11px"
+                        >44%</span
+                      >
+                    </div>
+                    <div
+                      style="font-size: 11px; font-weight: 800; margin-top: 2px"
+                    >
+                      110°
+                      <span
+                        id="vc-tc-rr"
+                        class="temp-carcass-opt"
+                        style="font-size: 10px"
+                        >(103°)</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Pillar: Hybrid Action Tiles (35% width) -->
+            <div class="hybrid-pillar">
+              <div
+                class="hybrid-tile"
+                style="border-color: #ef4444; background: #3b0d0d"
+                onclick="triggerPrompt('BOX_THIS_LAP')"
+              >
+                <div class="hybrid-head">
+                  <span class="hybrid-title" style="color: #fca5a5"
+                    >🛑 TACTICAL PIT CALL</span
+                  >
+                  <span style="font-size: 9px; color: #f87171; font-weight: 800"
+                    >TAP TO BOX</span
+                  >
+                </div>
+                <div class="hybrid-val">
+                  <span>BOX THIS LAP</span>
+                  <span style="font-size: 11px; color: #fecaca">READY</span>
+                </div>
+              </div>
+
+              <div class="hybrid-tile" onclick="triggerPrompt('CROSSOVER')">
+                <div class="hybrid-head">
+                  <span class="hybrid-title">🌧️ WEATHER RADAR</span>
+                  <span style="font-size: 9px; color: #38bdf8; font-weight: 800"
+                    >TAP FOR AUDIO</span
+                  >
+                </div>
+                <div class="hybrid-val">
+                  <span id="vc-hybrid-rain">Rain in 2m45s</span>
+                  <span
+                    id="vc-target-pill"
+                    class="target-compound-pill target-inters"
+                    style="font-size: 9px"
+                    >INTERS</span
+                  >
+                </div>
+              </div>
+
+              <div class="hybrid-tile" onclick="triggerPrompt('REJOIN')">
+                <div class="hybrid-head">
+                  <span class="hybrid-title">⏱️ REJOIN GAP</span>
+                  <span style="font-size: 9px; color: #38bdf8; font-weight: 800"
+                    >TAP FOR TRAFFIC</span
+                  >
+                </div>
+                <div class="hybrid-val">
+                  <span id="vc-hybrid-rejoin">Exit P7 [Clean Air]</span>
+                  <span
+                    style="
+                      font-size: 10px;
+                      color: var(--good);
+                      font-weight: 800;
+                    "
+                    >+4.2s GAP</span
+                  >
+                </div>
+              </div>
+
+              <div class="hybrid-tile" onclick="triggerPrompt('TYRE_STATUS')">
+                <div class="hybrid-head">
+                  <span class="hybrid-title">🛞 CARCASS STATUS</span>
+                  <span style="font-size: 9px; color: #38bdf8; font-weight: 800"
+                    >TAP FOR ADVICE</span
+                  >
+                </div>
+                <div class="hybrid-val">
+                  <span id="vc-hybrid-tyres">Rear: 103°C Core</span>
+                  <span
+                    style="
+                      font-size: 10px;
+                      color: var(--warn);
+                      font-weight: 800;
+                    "
+                    >STABLE</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Prototype Switcher Bar -->
+    <div class="prototype-switcher">
+      <button
+        class="switcher-arrow"
+        onclick="cycleVariant(-1)"
+        title="Previous Variant (Left Arrow)"
+      >
+        ◀
+      </button>
+      <div class="switcher-label">
+        <span id="switcher-cur-variant">Variant A: Ergonomic Thumb-Wings</span>
+        <span class="switcher-pill">1 of 3</span>
+      </div>
+      <button
+        class="switcher-arrow"
+        onclick="cycleVariant(1)"
+        title="Next Variant (Right Arrow)"
+      >
+        ▶
+      </button>
+    </div>
+
+    <script>
+      // State
+      const variants = [
+        {
+          id: "variant-a",
+          name: "Variant A: Ergonomic Thumb-Wings",
+          sub: "Split Outer Bezel Touch Pads",
+        },
+        {
+          id: "variant-b",
+          name: "Variant B: Lower Command Deck",
+          sub: "Upper Telemetry + 4-Button Deck",
+        },
+        {
+          id: "variant-c",
+          name: "Variant C: Hybrid Action Tiles",
+          sub: "Hero Card + Widget-is-Button Pillar",
+        },
+      ];
+      let currentVariantIdx = 0;
+
+      // Scenarios
+      const scenarios = {
+        dry_pit_window: {
+          rainPct: 12,
+          timeToCross: "02:45",
+          targetCompound: "INTERMEDIATES",
+          crossoverFill: 25,
+          rejoinPos: "P7",
+          rejoinStatus: "CLEAN AIR WINDOW",
+          rejoinClass: "status-clean-air",
+          gapAhead: "Ahead: +4.2s (ALO • 18L Hard)",
+          gapBehind: "Behind: +3.1s (TSU • 12L Med)",
+          pitLoss: "21.8s PIT LOSS [PADDOCK]",
+          flWear: 28,
+          frWear: 31,
+          rlWear: 42,
+          rrWear: 44,
+          flSurf: 102,
+          frSurf: 106,
+          rlSurf: 108,
+          rrSurf: 110,
+          flCore: 94,
+          frCore: 97,
+          rlCore: 101,
+          rrCore: 103,
+          radioResponse:
+            "Box this lap. Clear air window open between Alonso and Tsunoda.",
+        },
+        rain_crossover: {
+          rainPct: 22,
+          timeToCross: "00:45",
+          targetCompound: "INTERMEDIATES",
+          crossoverFill: 85,
+          rejoinPos: "P5",
+          rejoinStatus: "INTERS CROSSOVER ACTIVE",
+          rejoinClass: "status-clean-air",
+          gapAhead: "Ahead: +6.8s (LEC • Inters)",
+          gapBehind: "Behind: +5.2s (HAM • Slicks)",
+          pitLoss: "22.1s PIT LOSS [PADDOCK]",
+          flWear: 32,
+          frWear: 35,
+          rlWear: 46,
+          rrWear: 48,
+          flSurf: 88,
+          frSurf: 90,
+          rlSurf: 92,
+          rrSurf: 94,
+          flCore: 82,
+          frCore: 84,
+          rlCore: 86,
+          rrCore: 88,
+          radioResponse:
+            "DRS disabled by Race Control. Box this lap for Inters! Intermediate window active.",
+        },
+        traffic_risk: {
+          rainPct: 8,
+          timeToCross: "12:00",
+          targetCompound: "SLICKS (HARD)",
+          crossoverFill: 10,
+          rejoinPos: "P12",
+          rejoinStatus: "TRAFFIC PACK RISK",
+          rejoinClass: "status-traffic-pack",
+          gapAhead: "Ahead: +0.6s (OCO • DRS Train)",
+          gapBehind: "Behind: +0.9s (HUL • Cold Tyres)",
+          pitLoss: "22.4s PIT LOSS [PADDOCK]",
+          flWear: 38,
+          frWear: 40,
+          rlWear: 52,
+          rrWear: 55,
+          flSurf: 104,
+          frSurf: 108,
+          rlSurf: 109,
+          rrSurf: 112,
+          flCore: 98,
+          frCore: 100,
+          rlCore: 104,
+          rrCore: 106,
+          radioResponse:
+            "Do NOT box now! Rejoin will exit directly behind Ocon into a 4-car DRS train.",
+        },
+        thermal_distress: {
+          rainPct: 0,
+          timeToCross: "—",
+          targetCompound: "SLICKS",
+          crossoverFill: 0,
+          rejoinPos: "P6",
+          rejoinStatus: "CLEAN AIR WINDOW",
+          rejoinClass: "status-clean-air",
+          gapAhead: "Ahead: +3.8s (PIA • 8L Hard)",
+          gapBehind: "Behind: +4.5s (RUS • +3s Pen)",
+          pitLoss: "21.6s PIT LOSS [PADDOCK]",
+          flWear: 45,
+          frWear: 48,
+          rlWear: 64,
+          rrWear: 68,
+          flSurf: 118,
+          frSurf: 122,
+          rlSurf: 126,
+          rrSurf: 128,
+          flCore: 106,
+          frCore: 108,
+          rlCore: 112,
+          rrCore: 114,
+          radioResponse:
+            "Rear inner carcass 114°C, blistering imminent! Shift brake bias +2 forward.",
+        },
+      };
+
+      let activeScenarioKey = "dry_pit_window";
+
+      function setScenario(key) {
+        activeScenarioKey = key;
+        document
+          .querySelectorAll(".scenario-btn")
+          .forEach((b) => b.classList.remove("active"));
+        event.target.classList.add("active");
+        applyScenarioData();
+        synthesizeBeep(440, 0.05);
+      }
+
+      function applyScenarioData() {
+        const data = scenarios[activeScenarioKey];
+
+        // Update all variants
+        ["va", "vb", "vc"].forEach((p) => {
+          const elRejoinBadge = document.getElementById(`${p}-rejoin-badge`);
+          if (elRejoinBadge) elRejoinBadge.textContent = data.rejoinPos;
+
+          const elRejoinStatus = document.getElementById(`${p}-rejoin-status`);
+          if (elRejoinStatus) {
+            elRejoinStatus.textContent = data.rejoinStatus;
+            elRejoinStatus.className = `rejoin-status ${data.rejoinClass}`;
+          }
+
+          const elGapAhead = document.getElementById(`${p}-gap-ahead`);
+          if (elGapAhead) elGapAhead.textContent = data.gapAhead;
+
+          const elGapBehind = document.getElementById(`${p}-gap-behind`);
+          if (elGapBehind) elGapBehind.textContent = data.gapBehind;
+
+          const elClock = document.getElementById(`${p}-crossover-clock`);
+          if (elClock) elClock.textContent = data.timeToCross;
+
+          const elFill = document.getElementById(`${p}-weather-fill`);
+          if (elFill) elFill.style.width = `${data.crossoverFill}%`;
+
+          // Tyres
+          const wearColors = {
+            fl:
+              data.flWear > 60
+                ? "var(--bad)"
+                : data.flWear > 40
+                  ? "var(--warn)"
+                  : "var(--good)",
+            fr:
+              data.frWear > 60
+                ? "var(--bad)"
+                : data.frWear > 40
+                  ? "var(--warn)"
+                  : "var(--good)",
+            rl:
+              data.rlWear > 60
+                ? "var(--bad)"
+                : data.rlWear > 40
+                  ? "var(--warn)"
+                  : "var(--good)",
+            rr:
+              data.rrWear > 60
+                ? "var(--bad)"
+                : data.rrWear > 40
+                  ? "var(--warn)"
+                  : "var(--good)",
+          };
+
+          ["fl", "fr", "rl", "rr"].forEach((pos) => {
+            const w = document.getElementById(`${p}-wear-${pos}`);
+            if (w) {
+              w.textContent = `${data[pos + "Wear"]}%`;
+              w.style.color = wearColors[pos];
+            }
+            const s = document.getElementById(`${p}-ts-${pos}`);
+            if (s) s.textContent = `${data[pos + "Surf"]}°`;
+            const c = document.getElementById(`${p}-tc-${pos}`);
+            if (c) {
+              const coreVal = data[pos + "Core"];
+              c.textContent = `${coreVal}°`;
+              c.className =
+                coreVal >= 105
+                  ? "temp-val temp-carcass-hot"
+                  : coreVal <= 85
+                    ? "temp-val temp-carcass-cold"
+                    : "temp-val temp-carcass-opt";
+            }
+          });
+        });
+
+        // DRS state
+        const drsBadge = document.getElementById("st-drs");
+        if (activeScenarioKey === "rain_crossover") {
+          drsBadge.textContent = "DRS DISABLED (WET)";
+          drsBadge.className = "badge-pill badge-drs-off";
+        } else {
+          drsBadge.textContent = "DRS ACTIVE";
+          drsBadge.className = "badge-pill badge-drs-on";
+        }
+      }
+
+      function switchVariant(idx) {
+        currentVariantIdx = (idx + variants.length) % variants.length;
+        document
+          .querySelectorAll(".variant-container")
+          .forEach((el) => el.classList.remove("active"));
+        const activeVar = variants[currentVariantIdx];
+        document.getElementById(activeVar.id).classList.add("active");
+
+        document.getElementById("switcher-cur-variant").innerHTML =
+          `<strong>${activeVar.name}</strong>`;
+        document.querySelector(".switcher-pill").textContent =
+          `${currentVariantIdx + 1} of ${variants.length}`;
+
+        synthesizeBeep(520, 0.04);
+      }
+
+      function cycleVariant(dir) {
+        switchVariant(currentVariantIdx + dir);
+      }
+
+      // Keyboard navigation
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowLeft") cycleVariant(-1);
+        if (e.key === "ArrowRight") cycleVariant(1);
+      });
+
+      // Tactile Prompt Execution
+      function triggerPrompt(promptKey) {
+        synthesizeBeep(880, 0.08);
+
+        const banner = document.getElementById("engineer-banner");
+        const bannerText = document.getElementById("engineer-banner-text");
+
+        let reply = "";
+        const sc = scenarios[activeScenarioKey];
+        if (promptKey === "BOX_THIS_LAP") {
+          reply = `"Box, box. Pit confirm received. Fitting ${sc.targetCompound}, rejoin in ${sc.rejoinPos}."`;
+        } else if (promptKey === "CROSSOVER") {
+          reply = `"Rain update: ${sc.rainPct}% track wetness. Crossover window in ${sc.timeToCross}."`;
+        } else if (promptKey === "REJOIN") {
+          reply = `"Rejoin analysis: Pit now and exit ${sc.rejoinPos}. ${sc.rejoinStatus}. ${sc.gapAhead}."`;
+        } else if (promptKey === "TYRE_STATUS") {
+          reply = `"Tyre monitor: Rear carcass running ${sc.rrCore}°C. ${sc.rrCore >= 105 ? "Thermal blistering threat!" : "Pace is nominal."}"`;
+        }
+
+        bannerText.textContent = reply;
+        banner.style.display = "flex";
+
+        clearTimeout(window.radioTimeout);
+        window.radioTimeout = setTimeout(() => {
+          banner.style.display = "none";
+        }, 4500);
+      }
+
+      // Web Audio tactile radio click
+      let audioCtx = null;
+      function synthesizeBeep(freq, duration) {
+        try {
+          if (!audioCtx)
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === "suspended") audioCtx.resume();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = "triangle";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(
+            0.001,
+            audioCtx.currentTime + duration
+          );
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+        } catch (e) {}
+      }
+
+      // Initial setup
+      applyScenarioData();
+    </script>
+  </body>
+</html>

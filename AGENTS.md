@@ -4,7 +4,7 @@
 
 ### Architecture decisions
 
-Architecture decisions live in `docs/adr/`. Note ADR-0001 (active client development is focused on Expo `mobile/`; `frontend/` is frozen) and ADR-0004 (single-canvas persistent landscape HUD with modal sheets; bypasses multi-page routing).
+Architecture decisions live in `docs/adr/`. Note ADR-0001 (mobile-only Companion Client; no web client) and ADR-0004 (single-canvas persistent landscape HUD with modal sheets; bypasses multi-page routing).
 
 ### Telemetry packet specifications
 

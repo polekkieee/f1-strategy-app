@@ -60,6 +60,18 @@ _Avoid_: Exit position, pit estimate
 The track moisture and rain intensity threshold at which tyre compound performance crosses over (e.g., Slick to Intermediate, or Intermediate to Full Wet), derived from predictive forecast samples.  
 _Avoid_: Rain trigger, tyre switch point
 
+**Race Control DRS State**:
+The official track condition status broadcast via telemetry event strings (`DRSD` with reason 0 for wet track, `DRSE` for enabled), serving as an authoritative regulatory confirmation of track wetness.  
+_Avoid_: DRS flag, wing status
+
+**Tyre Thermal Distress**:
+The thermal state where tyre carcass or surface temperatures breach operational boundaries (e.g. slick carcass sub-cooling below $75^\circ\text{C}$ in wet conditions or intermediate/wet carcass overheating above $105^\circ\text{C}$ on drying tracks), validating compound crossover urgency.  
+_Avoid_: Cooked tyres, cold rubber
+
+**Paddock Consensus**:
+The tactical confirmation triggered when multiple rival cars (or immediate gap rivals) pit and switch compound categories (dry to wet or wet to dry), corroborating predictive crossover timing with live on-track telemetry.  
+_Avoid_: Rival copycat, herd behavior
+
 **Quick Prompt Button**:
 A tactile, single-tap rig control on the Companion Client HUD triggering a pinned, high-priority query or instruction to the AI Race Engineer (e.g., "Full race update", "Driver ahead", "Check pit strategy").  
 _Avoid_: Radio button, chat chip
